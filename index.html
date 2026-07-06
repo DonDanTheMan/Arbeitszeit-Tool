@@ -912,12 +912,14 @@
             </div>
           </div>
 
-          <div class="row" style="margin-top:12px;">
-            <button class="btn" id="btnSaveDay" title="Speichert den Tag">💾 Tag speichern</button>
-            <button class="btn secondary" id="btnCopyPrev" title="Übernimmt Zeiten vom Vortag">↩️ Vortag übernehmen</button>
-            <button class="btn secondary" id="btnClearForm" title="Leert die Eingabefelder">🧹 Felder leeren</button>
-            <span class="small" id="calcHint"></span>
-          </div>
+			<div class="row" style="margin-top:12px;">
+			  <button class="btn" id="btnSaveDay" title="Speichert den Tag (nur wenn alle Zeiten gültig sind)">💾 Tag speichern</button>
+			  <!-- NEUER PLATZ: Schön eingereiht in die Aktionsleiste -->
+			  <button class="btn secondary" id="btnStandardDay" type="button" title="Standard-Zeiten laut Jahres-Einstellungen eintragen">⚡ Standard-Tag</button>
+			  <button class="btn secondary" id="btnCopyPrev" title="Übernimmt Start/Ende/Pause vom Vortag (nur wenn gespeichert)">↩️ Vortag übernehmen</button>
+			  <button class="btn secondary" id="btnClearForm" title="Leert die Eingabefelder (Draft wird aktualisiert)">🧹 Felder leeren</button>
+			  <span class="small" id="calcHint"></span>
+			</div>
 
           <div style="margin-top:14px;">
             <div class="kpi">
@@ -2257,6 +2259,18 @@ function liveCalc(){
   $("kpiWorked").textContent = fmtMinutes(worked); setDeltaEl($("kpiDelta"), delta);
 
   let hint = ""; const markers = getDayMarkers(date);
+  
+  // Feature 4: Feiertags-Vorschau im Formular aktualisieren
+  const holidayHintEl = $("formHolidayHint");
+  if(holidayHintEl){
+    if(markers.holidayName){
+      holidayHintEl.textContent = `✨ ${markers.holidayName} (Soll reduziert)`;
+      holidayHintEl.style.display = "block";
+    } else {
+      holidayHintEl.style.display = "none";
+    }
+  }
+
   if(document.querySelector("input.invalid")) hint = "Ungültige Zeit(en) – bitte korrigieren (rote Felder).";
   else if(markers.holidayName) hint = `Hinweis: Feiertag (${markers.holidayName}) – Buchung möglich.`;
   else if(markers.weekend) hint = "Hinweis: Wochenende – Buchung möglich.";
@@ -2772,6 +2786,42 @@ $("btnResetAll").addEventListener("click", ()=>{
   const timesBtn = document.querySelector('.tabbtn[data-tab="times"]'); if(timesBtn) timesBtn.click();
   window.addEventListener("resize", () => { if(state?.ui?.activeTab === "stats") renderStats(); });
   $("btnExportMonthCsv")?.addEventListener("click", exportMonthCsv);
+  
+// Feature 2: Klick-Logik für deinen individuellen Standard-Tag (inkl. Vorholzeit)
+  $("btnStandardDay")?.addEventListener("click", () => {
+    const date = $("work_date").value || todayISO();
+    const settings = getSettingsForYear(getYearFromISO(date));
+    
+    // Holt das komplette Tagessoll (Regulär + Vorholzeit, z.B. 08:24 + 00:12 = 08:36)
+    const otTargetMin = targetOvertimeMinutes(settings) || 504;
+    
+    // Deine festen Vorgaben für den Start und die Mittagspause
+    $("t_start1").value = "06:42";
+    $("t_break").value = "01:05";
+    
+    const startMin = parseDurationHHMM("06:42") || 402; // 06:42 in Minuten
+    const breakMin = parseDurationHHMM("01:05") || 65;  // 01:05h Pause in Minuten
+    
+    // Feierabend = Startzeit + Gesamtes Tagessoll (inkl. Vorholzeit) + Pause
+    const endMin = startMin + otTargetMin + breakMin;
+    
+    $("t_end1").value = fmtMinutes(endMin);
+    
+    // Zweiter Block bleibt leer
+    $("t_start2").value = "";
+    $("t_end2").value = "";
+    
+    // Spezial-Flags zurücksetzen
+    $("trip_check").checked = false;
+    $("vac_check").checked = false;
+    $("comp_check").checked = false;
+    $("pre_check").checked = false;
+    
+    saveDraft();
+    liveCalc();
+    validateDayInputs();
+  });
+  
   setupListControls(); refreshAll(); wireStatsChartHover();
   if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW error", err)); }
 })();
