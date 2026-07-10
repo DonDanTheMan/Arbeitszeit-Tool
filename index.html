@@ -2782,12 +2782,21 @@ $("btnResetAll").addEventListener("click", ()=>{
    Init
   ========================= */
 (function init(){
-  ensureDefaultSheetsSelection(); loadDraft(); $("work_date").value = todayISO();
+  ensureDefaultSheetsSelection(); 
+  
+  // 1. ZUERST den gespeicherten Entwurf von morgens laden
+  loadDraft(); 
+  
+  // 2. NUR wenn nach dem Laden des Drafts noch KEIN Datum gesetzt ist, das heutige setzen
+  if (!$("work_date").value) {
+    $("work_date").value = todayISO();
+  }
+
   const timesBtn = document.querySelector('.tabbtn[data-tab="times"]'); if(timesBtn) timesBtn.click();
   window.addEventListener("resize", () => { if(state?.ui?.activeTab === "stats") renderStats(); });
   $("btnExportMonthCsv")?.addEventListener("click", exportMonthCsv);
   
-// Feature 2: Klick-Logik für deinen individuellen Standard-Tag (inkl. Vorholzeit)
+  // Feature 2: Intelligente Klick-Logik für deinen Standard-Tag (inkl. Vorholzeit)
   $("btnStandardDay")?.addEventListener("click", () => {
     const date = $("work_date").value || todayISO();
     const settings = getSettingsForYear(getYearFromISO(date));
@@ -2795,12 +2804,22 @@ $("btnResetAll").addEventListener("click", ()=>{
     // Holt das komplette Tagessoll (Regulär + Vorholzeit, z.B. 08:24 + 00:12 = 08:36)
     const otTargetMin = targetOvertimeMinutes(settings) || 504;
     
-    // Deine festen Vorgaben für den Start und die Mittagspause
-    $("t_start1").value = "06:42";
-    $("t_break").value = "01:05";
+    // ÄNDERUNG: Startzeit NUR eintragen, wenn das Feld aktuell komplett leer ist!
+    if (!($("t_start1").value || "").trim()) {
+      $("t_start1").value = "06:42";
+    }
     
-    const startMin = parseDurationHHMM("06:42") || 402; // 06:42 in Minuten
-    const breakMin = parseDurationHHMM("01:05") || 65;  // 01:05h Pause in Minuten
+    // ÄNDERUNG: Pause NUR eintragen, wenn das Feld aktuell komplett leer ist!
+    if (!($("t_break").value || "").trim()) {
+      $("t_break").value = "01:05";
+    }
+    
+    // Nimm die aktuell in den Feldern stehenden Werte (entweder deine manuellen oder die Standard-Werte)
+    const currentStart = $("t_start1").value.trim();
+    const currentBreak = $("t_break").value.trim();
+    
+    const startMin = parseDurationHHMM(currentStart) || 402; 
+    const breakMin = parseDurationHHMM(currentBreak) || 65;  
     
     // Feierabend = Startzeit + Gesamtes Tagessoll (inkl. Vorholzeit) + Pause
     const endMin = startMin + otTargetMin + breakMin;
@@ -2821,6 +2840,10 @@ $("btnResetAll").addEventListener("click", ()=>{
     liveCalc();
     validateDayInputs();
   });
+  
+  // Event-Listener, damit die Feiertags-Vorschau sofort anspringt, wenn du ein Datum änderst
+  $("work_date")?.addEventListener("change", liveCalc);
+  $("work_date")?.addEventListener("input", liveCalc);
   
   setupListControls(); refreshAll(); wireStatsChartHover();
   if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW error", err)); }
