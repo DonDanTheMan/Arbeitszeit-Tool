@@ -842,6 +842,20 @@
               <input id="set_vorholtage" type="number" min="0" step="0.5" placeholder="0" />
             </div>
           </div>
+		  <div class="grid" style="margin-top: 15px;">
+		  <div style="grid-column: span 4;">
+			<label for="set_std_start">Standard Start 1</label>
+			<input id="set_std_start" type="text" placeholder="z.B. 06:42" />
+		  </div>
+		  <div style="grid-column: span 4;">
+			<label for="set_std_end">Standard Ende 1 (kann leer bleiben)</label>
+			<input id="set_std_end" type="text" placeholder="z.B. 16:23" />
+		  </div>
+		  <div style="grid-column: span 4;">
+			<label for="set_std_break">Standard Pause</label>
+			<input id="set_std_break" type="text" placeholder="z.B. 01:05" />
+		  </div>
+		</div>
           <div class="row" style="margin-top: 12px;">
             <button class="btn" id="btnSaveSettings" title="Speichert die Jahres-Einstellungen lokal">💾 Einstellungen speichern</button>
             <span class="small" id="settingsStatus"></span>
@@ -915,7 +929,7 @@
 			<div class="row" style="margin-top:12px;">
 			  <button class="btn" id="btnSaveDay" title="Speichert den Tag (nur wenn alle Zeiten gültig sind)">💾 Tag speichern</button>
 			  <!-- NEUER PLATZ: Schön eingereiht in die Aktionsleiste -->
-			  <button class="btn secondary" id="btnStandardDay" type="button" title="Standard-Zeiten laut Jahres-Einstellungen eintragen">⚡ Standard-Tag</button>
+			  <button class="btn secondary" id="btnStandardDay" type="button" title="Setzt Standard-Zeiten laut Einstellungen. Ansonsten wird Arbeitszeit + Vorholzeit auf die Start1-Zeit gerechnet">⚡ Standard-Tag</button>
 			  <button class="btn secondary" id="btnCopyPrev" title="Übernimmt Start/Ende/Pause vom Vortag (nur wenn gespeichert)">↩️ Vortag übernehmen</button>
 			  <button class="btn secondary" id="btnClearForm" title="Leert die Eingabefelder (Draft wird aktualisiert)">🧹 Felder leeren</button>
 			  <span class="small" id="calcHint"></span>
@@ -2126,11 +2140,13 @@ function renderSheets(){
 
 function renderOverview(){
   const s = getSettingsForYear(state.ui.selectedYear);
-  if($("set_regular")) $("set_regular").value = s.regular ?? "08:24";
-  if($("set_vorhol"))  $("set_vorhol").value  = s.vorhol ?? "00:00";
-  if($("set_carry"))   $("set_carry").value   = s.carry ?? "00:00";
-  if($("set_urlaub"))  $("set_urlaub").value  = s.urlaub ?? 0;
+  if($("set_regular"))    $("set_regular").value    = s.regular ?? "08:24";
+  if($("set_vorhol"))     $("set_vorhol").value     = s.vorhol ?? "00:00";
+  if($("set_carry"))      $("set_carry").value      = s.carry ?? "00:00";
+  if($("set_urlaub"))     $("set_urlaub").value     = s.urlaub ?? 0;
   if($("set_vorholtage")) $("set_vorholtage").value = s.vorholtage ?? 0;
+  if($("set_std_start"))  $("set_std_start").value  = s.stdStart ?? "06:42";
+  if($("set_std_break"))  $("set_std_break").value  = s.stdBreak ?? "01:05";
 }
 
 function renderTimesKPIs(){
@@ -2295,7 +2311,8 @@ document.querySelectorAll(".tabbtn").forEach(btn=>{
 
 $("btnSaveSettings").addEventListener("click", ()=>{
   let ok = true;
-  for(const id of ["set_regular","set_vorhol","set_carry"]){
+  // Die neuen Felder "set_std_start" und "set_std_break" werden hier direkt mitvalidiert
+  for(const id of ["set_regular","set_vorhol","set_carry","set_std_start","set_std_break"]){
     const v = $(id).value.trim(); const isOk = !v.length || isValidDurationHHMM(v);
     markValidity(id, isOk); if(!isOk) ok = false;
   }
@@ -2303,8 +2320,14 @@ $("btnSaveSettings").addEventListener("click", ()=>{
 
   const y = String(state.ui.selectedYear);
   state.yearSettings[y] = {
-    regular: $("set_regular").value.trim() || "08:24", vorhol: $("set_vorhol").value.trim() || "00:00", carry: $("set_carry").value.trim() || "00:00",
-    urlaub: Number($("set_urlaub").value || 0), vorholtage: Number($("set_vorholtage").value || 0)
+    regular: $("set_regular").value.trim() || "08:24", 
+    vorhol: $("set_vorhol").value.trim() || "00:00", 
+    carry: $("set_carry").value.trim() || "00:00",
+    urlaub: Number($("set_urlaub").value || 0), 
+    vorholtage: Number($("set_vorholtage").value || 0),
+    // NEU: Die Standardzeiten werden hier sicher im state hinterlegt
+    stdStart: $("set_std_start").value.trim() || "06:42",
+    stdBreak: $("set_std_break").value.trim() || "01:05"
   };
   saveState(state); $("settingsStatus").textContent = "Gespeichert."; $("settingsStatus").style.color = "var(--ok)"; refreshAll();
 });
@@ -2331,8 +2354,16 @@ function showYearDialog(newYear, suggestedCarry){
   return new Promise((resolve) => {
     const dlg = $("yearDialog"); $("ydSub").textContent = `Für ${newYear} einmalig Einstellungen festlegen.`;
     const prev = getSettingsForYear(Number(newYear) - 1);
-    $("yd_regular").value = prev.regular ?? "08:24"; $("yd_vorhol").value = prev.vorhol ?? "00:00";
-    $("yd_carry").value = suggestedCarry ?? "00:00"; $("yd_urlaub").value = prev.urlaub ?? 0; $("yd_vorholtage").value = prev.vorholtage ?? 0;
+    
+    $("yd_regular").value = prev.regular ?? "08:24"; 
+    $("yd_vorhol").value = prev.vorhol ?? "00:00";
+    $("yd_carry").value = suggestedCarry ?? "00:00"; 
+    $("yd_urlaub").value = prev.urlaub ?? 0; 
+    $("yd_vorholtage").value = prev.vorholtage ?? 0;
+    
+    // NEU: Werte aus dem Vorjahr in den Dialog als Vorschlag laden
+    if($("yd_std_start")) $("yd_std_start").value = prev.stdStart ?? "06:42";
+    if($("yd_std_break")) $("yd_std_break").value = prev.stdBreak ?? "01:05";
 
     const onClose = () => {
       dlg.removeEventListener("close", onClose);
@@ -2340,8 +2371,14 @@ function showYearDialog(newYear, suggestedCarry){
       resolve({
         ok: true,
         settings: {
-          regular: $("yd_regular").value.trim() || "08:24", vorhol: $("yd_vorhol").value.trim() || "00:00", carry: $("yd_carry").value.trim() || "00:00",
-          urlaub: Number($("yd_urlaub").value || 0), vorholtage: Number($("yd_vorholtage").value || 0)
+          regular: $("yd_regular").value.trim() || "08:24", 
+          vorhol: $("yd_vorhol").value.trim() || "00:00", 
+          carry: $("yd_carry").value.trim() || "00:00",
+          urlaub: Number($("yd_urlaub").value || 0), 
+          vorholtage: Number($("yd_vorholtage").value || 0),
+          // NEU: Beim Erstellen des neuen Jahres mitspeichern
+          stdStart: $("yd_std_start") ? $("yd_std_start").value.trim() : "06:42",
+          stdBreak: $("yd_std_break") ? $("yd_std_break").value.trim() : "01:05"
         }
       });
     };
@@ -2404,7 +2441,7 @@ function loadDayIntoForm(date){
   refreshAll();
 }
 
-规律=$("btnSaveDay").addEventListener("click", async ()=>{
+$("btnSaveDay").addEventListener("click", async ()=>{
   const date = $("work_date").value; if(!date){ alert("Bitte ein Datum wählen."); return; }
   const y = String(getYearFromISO(date));
 
@@ -2813,27 +2850,34 @@ $("btnResetAll").addEventListener("click", ()=>{
     });
   });
 
-  // Feature 2: Intelligente Klick-Logik für deinen Standard-Tag (inkl. Vorholzeit)
+// Feature 2: Dynamischer Standard-Tag aus den Jahres-Einstellungen
   $("btnStandardDay")?.addEventListener("click", () => {
     const date = $("work_date").value || todayISO();
     const settings = getSettingsForYear(getYearFromISO(date));
+    
+    // 1. Hole die dynamischen Standardzeiten aus den Einstellungen (mit deinen aktuellen Werten als Fallback)
+    const configStart = settings.stdStart || "06:42";
+    const configBreak = settings.stdBreak || "01:05";
+    
+    // Holt das komplette Tagessoll (Regulär + Vorholzeit, z.B. 08:24 + 00:12 = 08:36)
     const otTargetMin = targetOvertimeMinutes(settings) || 504;
     
-    // Startzeit NUR eintragen, wenn das Feld aktuell komplett leer ist!
+    // 2. Startzeit NUR eintragen, wenn das Feld aktuell komplett leer ist!
     if (!($("t_start1").value || "").trim()) {
-      $("t_start1").value = "06:42";
+      $("t_start1").value = configStart;
     }
     
-    // Pause NUR eintragen, wenn das Feld aktuell komplett leer ist!
+    // 3. Pause NUR eintragen, wenn das Feld aktuell komplett leer ist!
     if (!($("t_break").value || "").trim()) {
-      $("t_break").value = "01:05";
+      $("t_break").value = configBreak;
     }
     
+    // Nimm die aktuell in den Feldern stehenden Werte (entweder manuell getippt oder aus den Einstellungen geladen)
     const currentStart = $("t_start1").value.trim();
     const currentBreak = $("t_break").value.trim();
     
-    const startMin = parseDurationHHMM(currentStart) || 402; 
-    const breakMin = parseDurationHHMM(currentBreak) || 65;  
+    const startMin = parseDurationHHMM(currentStart) || parseDurationHHMM(configStart) || 402; 
+    const breakMin = parseDurationHHMM(currentBreak) || parseDurationHHMM(configBreak) || 65;  
     
     // Feierabend = Startzeit + Gesamtes Tagessoll (inkl. Vorholzeit) + Pause
     const endMin = startMin + otTargetMin + breakMin;
