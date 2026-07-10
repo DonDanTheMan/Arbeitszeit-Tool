@@ -2784,37 +2784,51 @@ $("btnResetAll").addEventListener("click", ()=>{
 (function init(){
   ensureDefaultSheetsSelection(); 
   
-  // 1. ZUERST den gespeicherten Entwurf von morgens laden
+  // 1. Zuerst alle Standard-Listen und Ansichten aufbauen lassen
+  setupListControls(); 
+  refreshAll(); 
+  wireStatsChartHover();
+
+  // 2. Den gespeicherten Entwurf laden
   loadDraft(); 
   
-  // 2. NUR wenn nach dem Laden des Drafts noch KEIN Datum gesetzt ist, das heutige setzen
+  // 3. Nur wenn absolut gar kein Datum im Entwurf war, das heutige setzen
   if (!$("work_date").value) {
     $("work_date").value = todayISO();
   }
+  
+  // Nach dem Laden des Drafts die Berechnungen frisch anstoßen
+  liveCalc();
+  if(typeof validateDayInputs === "function") validateDayInputs();
 
   const timesBtn = document.querySelector('.tabbtn[data-tab="times"]'); if(timesBtn) timesBtn.click();
   window.addEventListener("resize", () => { if(state?.ui?.activeTab === "stats") renderStats(); });
   $("btnExportMonthCsv")?.addEventListener("click", exportMonthCsv);
   
+  // NEU: Jede manuelle Eingabe sofort im Draft sichern, wenn getippt wird
+  ["t_start1", "t_end1", "t_start2", "t_end2", "t_break", "work_date"].forEach(id => {
+    $(id)?.addEventListener("input", () => {
+      saveDraft();
+      liveCalc();
+    });
+  });
+
   // Feature 2: Intelligente Klick-Logik für deinen Standard-Tag (inkl. Vorholzeit)
   $("btnStandardDay")?.addEventListener("click", () => {
     const date = $("work_date").value || todayISO();
     const settings = getSettingsForYear(getYearFromISO(date));
-    
-    // Holt das komplette Tagessoll (Regulär + Vorholzeit, z.B. 08:24 + 00:12 = 08:36)
     const otTargetMin = targetOvertimeMinutes(settings) || 504;
     
-    // ÄNDERUNG: Startzeit NUR eintragen, wenn das Feld aktuell komplett leer ist!
+    // Startzeit NUR eintragen, wenn das Feld aktuell komplett leer ist!
     if (!($("t_start1").value || "").trim()) {
       $("t_start1").value = "06:42";
     }
     
-    // ÄNDERUNG: Pause NUR eintragen, wenn das Feld aktuell komplett leer ist!
+    // Pause NUR eintragen, wenn das Feld aktuell komplett leer ist!
     if (!($("t_break").value || "").trim()) {
       $("t_break").value = "01:05";
     }
     
-    // Nimm die aktuell in den Feldern stehenden Werte (entweder deine manuellen oder die Standard-Werte)
     const currentStart = $("t_start1").value.trim();
     const currentBreak = $("t_break").value.trim();
     
@@ -2841,11 +2855,8 @@ $("btnResetAll").addEventListener("click", ()=>{
     validateDayInputs();
   });
   
-  // Event-Listener, damit die Feiertags-Vorschau sofort anspringt, wenn du ein Datum änderst
   $("work_date")?.addEventListener("change", liveCalc);
-  $("work_date")?.addEventListener("input", liveCalc);
   
-  setupListControls(); refreshAll(); wireStatsChartHover();
   if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW error", err)); }
 })();
 </script>
