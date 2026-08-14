@@ -867,7 +867,19 @@
     <section class="panel active" id="tab-times">
       <div class="row work-layout">
         <div class="card">
-          <h2>Tag erfassen / bearbeiten</h2>
+			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+			  <h3 style="margin: 0;">Tag erfassen / bearbeiten</h3>
+			  <div style="display: flex; gap: 6px;">
+				<!-- NEU: Der Pausen-Schnellknopf -->
+				<button class="btn secondary small" id="btnStdBreak" type="button" title="Setzt das Pausenfeld fest auf 01:05" style="display: flex; align-items: center; gap: 4px; padding: 6px 10px;">
+				  ☕ Pause
+				</button>
+				<!-- Der "Jetzt"-Uhrzeitknopf -->
+				<button class="btn secondary small" id="btnNow" type="button" title="Fügt die aktuelle Uhrzeit (HH:MM) ein" style="display: flex; align-items: center; gap: 4px; padding: 6px 10px;">
+				  ⏱️ Jetzt
+				</button>
+			  </div>
+			</div>
           <div class="grid">
             <div style="grid-column: span 4;">
               <label for="work_date" title="Datum auswählen. Draft bleibt beim Browser-Schliessen gespeichert.">Datum</label>
@@ -927,11 +939,19 @@
           </div>
 
 			<div class="row" style="margin-top:12px;">
-			  <button class="btn" id="btnSaveDay" title="Speichert den Tag (nur wenn alle Zeiten gültig sind)">💾 Tag speichern</button>
-			  <!-- NEUER PLATZ: Schön eingereiht in die Aktionsleiste -->
-			  <button class="btn secondary" id="btnStandardDay" type="button" title="Setzt Standard-Zeiten laut Einstellungen. Ansonsten wird Arbeitszeit + Vorholzeit auf die Start1-Zeit gerechnet">⚡ Standard-Tag</button>
-			  <button class="btn secondary" id="btnCopyPrev" title="Übernimmt Start/Ende/Pause vom Vortag (nur wenn gespeichert)">↩️ Vortag übernehmen</button>
-			  <button class="btn secondary" id="btnClearForm" title="Leert die Eingabefelder (Draft wird aktualisiert)">🧹 Felder leeren</button>
+			  <div class="row" style="margin-top:12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+				  <button class="btn" id="btnSaveDay" title="Speichert den Tag">💾 Tag speichern</button>
+				  
+				  <!-- Feature 2: Abbrechen-Button (Standardmäßig ausgeblendet, erscheint beim Bearbeiten) -->
+				  <button class="btn secondary" id="btnCancelEdit" type="button" style="display: none; border-color: var(--bad); color: var(--bad);" title="Bearbeitung abbrechen und Formular leeren">❌ Abbrechen</button>
+				  
+				  <!-- Feature 4: Kompensations-Button (Gleittag) -->
+				  <button class="btn secondary" id="btnCompDay" type="button" title="Setzt diesen Tag als vollen Kompensationstag/Gleittag">🧩 Kompensationstag</button>
+
+				  <button class="btn secondary" id="btnStandardDay" type="button" title="Standard-Zeiten eintragen">⚡ Standard-Tag</button>
+				  <button class="btn secondary" id="btnCopyPrev" title="Vortag übernehmen">↩️ Vortag übernehmen</button>
+				  <button class="btn secondary" id="btnClearForm" title="Formular leeren">🧹 Felder leeren</button>
+				</div>
 			  <span class="small" id="calcHint"></span>
 			</div>
 
@@ -1004,6 +1024,32 @@
             <div class="value" id="kpiVorholAcc">–</div>
           </div>
           
+		  					  <!-- Visuelle Fortschrittsbalken für Kontingente -->
+			<div style="margin-top: 15px; background: rgba(0,0,0,0.2); padding: 12px; border-radius: 10px;">
+			  <!-- Urlaub -->
+			  <div style="margin-bottom: 10px;">
+				<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+				  <span>🏖️ Urlaub verbraucht: <strong id="txtVacProgress">0 / 0</strong></span>
+				  <span id="txtVacLeft" style="opacity: 0.8;">Rest: 0 Tage</span>
+				</div>
+				<div style="width: 100%; background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
+				  <div id="barVacProgress" style="width: 0%; background: var(--ok); height: 100%; transition: width 0.3s;"></div>
+				</div>
+			  </div>
+
+			  <!-- Vorholtage -->
+			  <div>
+				<div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+				  <span>⏩ Vorholtage verbraucht: <strong id="txtPreProgress">0 / 0</strong></span>
+				  <span id="txtPreLeft" style="opacity: 0.8;">Rest: 0 Tage</span>
+				</div>
+				<div style="width: 100%; background: rgba(255,255,255,0.1); height: 8px; border-radius: 4px; overflow: hidden;">
+				  <div id="barPreProgress" style="width: 0%; background: #4a90e2; height: 100%; transition: width 0.3s;"></div>
+				</div>
+			  </div>
+			</div>
+
+		  
           <div class="row" style="margin: 8px 0 10px; gap:8px; align-items:stretch;">
             <input id="daySearch" placeholder="Suchen (Notiz, Datum)…" style="flex:1; min-width: 220px;" />
             <select id="daySort" style="width: 170px;">
@@ -1041,9 +1087,13 @@
         <div class="grid">
           <div style="grid-column: span 6;">
             <div class="kpi">
-              <div class="label">🛠️ Total Soll (Filter)</div>
+              <div class="label">🛠️ Total Soll (mit Vorholzeit)</div>
               <div class="value" id="stTarget">–</div>
             </div> 
+			<div class="kpi">
+			  <div class="label">🎯 Reg. Sollzeit (ohne Vorholzeit)</div>
+			  <div class="value" id="setRegTarget">–</div>
+			</div>
             <div class="kpi" title="Deine echt geleistete, physische Arbeitszeit vor dem Bildschirm. An Kompensationstagen fliesst hier keine Zeit ein (0:00).">
               <div class="label">🛠️ Echte Arbeitszeit (Filter)</div>
               <div class="value" id="stWorked">–</div>
@@ -1055,10 +1105,6 @@
             <div class="kpi">
               <div class="label">⚖️ Jahressaldo (ohne Vorjahresübertrag)</div>
               <div class="value" id="stDelta">–</div>
-            </div>
-            <div class="kpi">
-              <div class="label">📅 Tage erfasst (Filter)</div>
-              <div class="value" id="stDays">–</div>
             </div>
           </div>
 
@@ -1079,8 +1125,12 @@
               <div class="label">⏩ Vorholtage genutzt (Filter)</div>
               <div class="value" id="stPre">–</div>
             </div>
+			            <div class="kpi">
+              <div class="label">📅 Tage erfasst (Filter)</div>
+              <div class="value" id="stDays">–</div>
+            </div>
           </div>
-          
+          		  
           <div class="stats-chart">
             <canvas id="stLineChart"></canvas>
             <div id="stForecast" class="chart-forecast"></div>
@@ -2147,6 +2197,30 @@ function renderOverview(){
   if($("set_vorholtage")) $("set_vorholtage").value = s.vorholtage ?? 0;
   if($("set_std_start"))  $("set_std_start").value  = s.stdStart ?? "06:42";
   if($("set_std_break"))  $("set_std_break").value  = s.stdBreak ?? "01:05";
+  
+  // Feature 1: Fortschrittsbalken für Urlaub & Vorholtage rendern
+  const year = state.ui.selectedYear;
+  const ySettings = getSettingsForYear(year);
+
+  // Urlaub berechnen
+  const vacTotal = Number(ySettings.urlaub || 0);
+  const vacUsed = countVacationDays ? countVacationDays(state, year) : 0;
+  const vacLeft = vacTotal - vacUsed;
+  const vacPct = vacTotal > 0 ? Math.min(100, Math.round((vacUsed / vacTotal) * 100)) : 0;
+
+  if ($("txtVacProgress")) $("txtVacProgress").textContent = `${vacUsed} / ${vacTotal} Tage`;
+  if ($("txtVacLeft")) $("txtVacLeft").textContent = `Rest: ${vacLeft} Tage`;
+  if ($("barVacProgress")) $("barVacProgress").style.width = `${vacPct}%`;
+
+  // Vorholtage berechnen
+  const preTotal = Number(ySettings.vorholtage || 0);
+  const preUsed = countPreDays ? countPreDays(state, year) : 0;
+  const preLeft = preTotal - preUsed;
+  const prePct = preTotal > 0 ? Math.min(100, Math.round((preUsed / preTotal) * 100)) : 0;
+
+  if ($("txtPreProgress")) $("txtPreProgress").textContent = `${preUsed} / ${preTotal} Tage`;
+  if ($("txtPreLeft")) $("txtPreLeft").textContent = `Rest: ${preLeft} Tage`;
+  if ($("barPreProgress")) $("barPreProgress").style.width = `${prePct}%`;
 }
 
 function renderTimesKPIs(){
@@ -2191,15 +2265,70 @@ function renderDaysTable(){
       wWorked += dd.worked; wDelta += dd.delta;
     }
 
+    // ==========================================
+    // NEU: HIER WIRD DAS MONATSSALDO BERECHNET
+    // ==========================================
+    // ==========================================
+    // KORRIGIERTE MONATSSALDO-BERECHNUNG
+    // ==========================================
+// ==========================================
+    // MONATSSALDO-BERECHNUNG MIT FARB-LOGIK
+    // ==========================================
+    const sampleDate = weekDates[0];
+    const yFromDate = getYearFromISO(sampleDate);
+    const mFromDate = getMonthFromISO(sampleDate);
+    const monthNum = Number(mFromDate);
+    const monthStrPadded = String(monthNum).padStart(2, "0");
+    
+    const monthName = typeof MONTH_NAMES !== "undefined" ? MONTH_NAMES[monthNum - 1] : `Monat ${monthNum}`;
+    
+    let mDelta = 0;
+    Object.keys(state.days).forEach(d => {
+      const isSameYear = getYearFromISO(d) === yFromDate;
+      const isSameMonth = String(getMonthFromISO(d)).padStart(2, "0") === monthStrPadded;
+
+      if (isSameYear && isSameMonth) {
+        const dd = calcDayDelta(state.days[d], getSettingsForYear(yFromDate));
+        if (dd && typeof dd.delta === "number") {
+          mDelta += dd.delta;
+        }
+      }
+    });
+
+    // Sauberes Formatieren des Monatssaldos
+    let mDeltaStr = "";
+    if (typeof fmtSignedMinutesHHMM === "function") {
+      mDeltaStr = fmtSignedMinutesHHMM(mDelta);
+    } else if (typeof fmtMinutes === "function") {
+      mDeltaStr = (mDelta >= 0 ? "+" : "-") + fmtMinutes(Math.abs(mDelta));
+    } else {
+      mDeltaStr = String(mDelta);
+    }
+
+    // Farbzuweisung: Grün bei Überzeit (> 0), Rot bei Unterzeit (< 0)
+    let mDeltaColor = "inherit"; // Neutral bei ±00:00
+    if (mDelta > 0) {
+      mDeltaColor = "var(--ok)";  // Grün
+    } else if (mDelta < 0) {
+      mDeltaColor = "var(--bad)"; // Rot
+    }
+
+    // ==========================================
+    // KW-HEADER MIT GEFÄRBTEM MONATSSALDO
+    // ==========================================
     const head = document.createElement("div"); head.className = "kwhead";
     head.innerHTML = `
-      <div class="kwbar" style="display:flex; justify-content:space-between;">
+      <div class="kwbar" style="display:flex; justify-content:space-between; align-items:center;">
         <div class="kwtitle"><span class="kw-caret">${collapsed ? "▶" : "▼"}</span><span class="kwlabel">🗓️ ${wy}-KW ${ww}</span></div>
+        <!-- Gefärbtes Monatssaldo -->
+        <div style="font-size:11px; opacity:0.9; background:rgba(255,255,255,0.08); padding: 2px 8px; border-radius: 12px; color: ${mDeltaColor}; font-weight: 600;">
+          📊 ${monthName}: ${mDeltaStr}
+        </div>
         <div class="small">${complete ? "✅ Abgeschlossen" : "⏳ Offen"}</div>
       </div>
       <div class="kwsums" style="display:flex; gap:14px; margin-top:4px; font-size:12px; opacity:0.8;">
-        <span class="${wDelta>0 ? "ok" : wDelta<0 ? "bad" : ""}">Σ Saldo: ${fmtMinutes(wDelta)}</span>
-        <span>🕒 Arbeitszeit: ${fmtMinutes(wWorked)}</span>
+        <span class="${wDelta>0 ? "ok" : wDelta<0 ? "bad" : ""}">Σ Saldo KW: ${fmtMinutes(wDelta)}</span>
+        <span>🕒 Arbeitszeit KW: ${fmtMinutes(wWorked)}</span>
       </div>`;
     head.style.cursor = "pointer"; list.appendChild(head);
 
@@ -2233,12 +2362,25 @@ function renderDaysTable(){
       if(!anyTag) tagsCell.innerHTML = `<span class="small">–</span>`;
 
       const act = document.createElement("div"); act.className = "actions";
-      const btnDetails = document.createElement("button"); btnDetails.className = "btn secondary"; btnDetails.textContent = "ℹ️";
-      const del = document.createElement("button"); del.className = "btn danger"; del.textContent = "🗑️";
+      const btnDetails = document.createElement("button"); btnDetails.className = "btn secondary"; btnDetails.textContent = "ℹ️"; btnDetails.title = "Details einblenden";
+      
+      const btnEdit = document.createElement("button"); 
+      btnEdit.className = "btn secondary"; 
+      btnEdit.textContent = "✏️";
+      btnEdit.title = "Diesen Tag bearbeiten";
+      btnEdit.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        loadDayIntoForm(date);
+      });
+
+      const del = document.createElement("button"); del.className = "btn danger"; del.textContent = "🗑️"; del.title = "Eintrag löschen";
       del.addEventListener("click", (e)=>{
         e.stopPropagation(); if(confirm(`Eintrag ${date} wirklich löschen?`)){ delete state.days[date]; saveState(state); refreshAll(); if($("work_date").value === date) clearForm(); }
       });
-      act.appendChild(btnDetails); act.appendChild(del);
+
+      act.appendChild(btnDetails); 
+      act.appendChild(btnEdit); 
+      act.appendChild(del);
 
       row.appendChild(dateCell); row.appendChild(workedCell); row.appendChild(deltaCell); row.appendChild(tagsCell); row.appendChild(act);
 
@@ -2429,16 +2571,108 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-function loadDayIntoForm(date){
-  const day = state.days[date]; if(!day) return;
-  state.ui.selectedYear = getYearFromISO(date); state.ui.selectedMonth = getMonthFromISO(date); saveState(state);
-  $("work_date").value = date;
-  $("t_start1").value = day.start1 || ""; $("t_end1").value = day.end1 || "";
-  $("t_start2").value = day.start2 || ""; $("t_end2").value = day.end2 || "";
-  $("t_break").value = day.break || ""; $("trip_check").checked = !!day.trip; $("trip_hours").value = day.tripHours || "";
-  $("work_note").value = day.note || ""; $("vac_check").checked = !!day.vacation; $("comp_check").checked = !!day.comp; $("pre_check").checked = !!day.pre;
-  const timesBtn = document.querySelector('.tabbtn[data-tab="times"]'); if(timesBtn) timesBtn.click();
-  refreshAll();
+// Globale Variablen für den Bearbeitungs-Zustand & Entwurf-Backup
+let editingDateIso = null;
+let draftBackup = null;
+
+function loadDayIntoForm(dateIso) {
+  const day = state.days[dateIso];
+  if (!day) return;
+
+  // 1. Sichere die aktuellen Eingaben von HEUTE (falls noch nicht geschehen)
+  if (!editingDateIso) {
+    draftBackup = {
+      work_date: todayISO(), // Wir merken uns explizit HEUTE als Ziel
+      t_start1: $("t_start1")?.value || "",
+      t_end1: $("t_end1")?.value || "",
+      t_start2: $("t_start2")?.value || "",
+      t_end2: $("t_end2")?.value || "",
+      t_break: $("t_break")?.value || "",
+      trip_check: $("trip_check")?.checked || false,
+      vac_check: $("vac_check")?.checked || false,
+      comp_check: $("comp_check")?.checked || false,
+      pre_check: $("pre_check")?.checked || false,
+      trip_hours: $("trip_hours")?.value || "",
+      day_note: $("day_note")?.value || ""
+    };
+  }
+
+  editingDateIso = dateIso;
+
+  // 2. Daten des alten Tages laden
+  $("work_date").value = dateIso;
+  $("t_start1").value = day.start1 || "";
+  $("t_end1").value = day.end1 || "";
+  $("t_start2").value = day.start2 || "";
+  $("t_end2").value = day.end2 || "";
+  $("t_break").value = day.break || "";
+
+  if ($("trip_check")) $("trip_check").checked = !!day.trip;
+  if ($("vac_check")) $("vac_check").checked = !!day.vacation;
+  if ($("comp_check")) $("comp_check").checked = !!day.comp;
+  if ($("pre_check")) $("pre_check").checked = !!day.pre;
+
+  if ($("trip_hours")) $("trip_hours").value = day.tripHours || "";
+  if ($("day_note")) $("day_note").value = day.note || "";
+
+  // 3. UI anpassen
+  if ($("btnSaveDay")) $("btnSaveDay").textContent = "💾 Änderungen speichern";
+  if ($("btnCancelEdit")) $("btnCancelEdit").style.display = "inline-flex";
+
+  liveCalc();
+  if (typeof validateDayInputs === "function") validateDayInputs();
+
+  const timesBtn = document.querySelector('.tabbtn[data-tab="times"]');
+  if (timesBtn) timesBtn.click();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function resetEditState() {
+  editingDateIso = null;
+
+  if ($("btnSaveDay")) $("btnSaveDay").textContent = "💾 Tag speichern";
+  if ($("btnCancelEdit")) $("btnCancelEdit").style.display = "none";
+
+  // 1. Wenn wir ein Backup hatten (weil wir morgens schon tippten), dieses laden
+  if (draftBackup) {
+    $("work_date").value = todayISO(); // Immer HEUTE erzwingen!
+    $("t_start1").value = draftBackup.t_start1;
+    $("t_end1").value = draftBackup.t_end1;
+    $("t_start2").value = draftBackup.t_start2;
+    $("t_end2").value = draftBackup.t_end2;
+    $("t_break").value = draftBackup.t_break;
+    
+    if ($("trip_check")) $("trip_check").checked = draftBackup.trip_check;
+    if ($("vac_check")) $("vac_check").checked = draftBackup.vac_check;
+    if ($("comp_check")) $("comp_check").checked = draftBackup.comp_check;
+    if ($("pre_check")) $("pre_check").checked = draftBackup.pre_check;
+
+    if ($("trip_hours")) $("trip_hours").value = draftBackup.trip_hours;
+    if ($("day_note")) $("day_note").value = draftBackup.day_note;
+
+    draftBackup = null; // Backup löschen
+  } else {
+    // 2. Ansonsten Formular komplett leeren und Datum AUF HEUTE setzen
+    if (typeof clearForm === "function") {
+      clearForm();
+    } else {
+      ["t_start1", "t_end1", "t_start2", "t_end2", "t_break", "day_note", "trip_hours"].forEach(id => {
+        if ($(id)) $(id).value = "";
+      });
+      if ($("trip_check")) $("trip_check").checked = false;
+      if ($("vac_check")) $("vac_check").checked = false;
+      if ($("comp_check")) $("comp_check").checked = false;
+      if ($("pre_check")) $("pre_check").checked = false;
+    }
+    
+    // Felsenfester Fallback: Das Datum muss IMMER auf den heutigen Tag gesetzt werden
+    $("work_date").value = todayISO();
+  }
+
+  // 3. Entwurf sichern, damit die korrigierten Werte im LocalStorage landen
+  saveDraft();
+  liveCalc();
+  if (typeof validateDayInputs === "function") validateDayInputs();
 }
 
 $("btnSaveDay").addEventListener("click", async ()=>{
@@ -2454,8 +2688,13 @@ $("btnSaveDay").addEventListener("click", async ()=>{
   if(errs.length){ alert(errs.join("\n")); return; }
 
   const wk = weekKey(date); const wasComplete = isWeekComplete(weekDatesFromISO(date));
-  state.days[date] = day; state.ui.selectedYear = Number(y); state.ui.selectedMonth = getMonthFromISO(date);
-  saveState(state); refreshAll();
+state.days[date] = day; 
+  state.ui.selectedYear = Number(y); 
+  state.ui.selectedMonth = getMonthFromISO(date);
+  saveState(state); 
+  
+  // ERST die UI aktualisieren lassen...
+  refreshAll();
 
   if(!wasComplete && isWeekComplete(weekDatesFromISO(date))){
     if(!state.ui.kwBackupAsked[wk]){
@@ -2463,6 +2702,9 @@ $("btnSaveDay").addEventListener("click", async ()=>{
       if(confirm(`✅ ${wk} abgeschlossen.\nBackup erstellen?`)){ downloadBackupJSON(buildBackupJSON()); }
     }
   }
+  
+  // ... und DANN ganz zum Schluss das Formular zurück auf HEUTE springen lassen!
+  resetEditState();
 });
 
 document.addEventListener("keydown", (e) => {
@@ -2490,7 +2732,7 @@ function renderStats(){
   // 1. Die Filter-Buttons für die Statistik zeichnen
   renderStatsFilterButtons();
 
-  // 2. Tage filtern: Wenn selectedStatsMonth === 0, nehmen wir das GANZE Jahr, sonst nur den Monat
+  // 2. Tage filtern (Ganzes Jahr oder einzelner Monat)
   const dates = Object.keys(state.days).filter(d => {
     const matchesYear = getYearFromISO(d) === y;
     if (!matchesYear) return false;
@@ -2501,6 +2743,7 @@ function renderStats(){
 
   let sumWorkedBrutto = 0;
   let sumTarget = 0;
+  let sumRegTarget = 0; // NEU: Summe der reinen Sollzeit ohne Vorholzeit
   let sumDelta = 0;
   let trips = 0; let vac = 0; let comp = 0; let pre = 0;
 
@@ -2508,6 +2751,13 @@ function renderStats(){
     const day = state.days[d]; 
     const settings = getSettingsForYear(getYearFromISO(d));
     const { target, worked, delta } = calcDayDelta(day, settings);
+
+    // NEU: Berechne das reine Tagessoll ohne Vorholzeit für diesen Tag
+    // Ist es ein Arbeitstag (target > 0), nehmen wir die reguläre Zeit, sonst 0 (z.B. Wochenende/Feiertag)
+    if (target > 0) {
+      const regMin = parseDurationHHMM(settings.regular || "08:24") || 504;
+      sumRegTarget += regMin;
+    }
 
     sumWorkedBrutto += worked;
     sumTarget += target;
@@ -2522,6 +2772,7 @@ function renderStats(){
   // Kacheln befüllen
   setText("stWorked", fmtMinutes(sumWorkedBrutto));
   setText("stTarget", fmtMinutes(sumTarget));
+  setText("setRegTarget", fmtMinutes(sumRegTarget)); // NEU: Befüllt das neue Feld
   setText("stVac", String(vac)); 
   setText("stComp", String(comp)); 
   setText("stPre", String(pre));
@@ -2536,14 +2787,12 @@ function renderStats(){
     else if(sumDelta < 0) elD.classList.add("bad"); 
   }
   
-  // WICHTIG: ySettings wird jetzt HIER definiert, damit es direkt verfügbar ist!
   const ySettings = getSettingsForYear(y);
 
-  // NEU: Gesamtsaldo inklusive Vorjahresübertrag berechnen
+  // Gesamtsaldo inklusive Vorjahresübertrag
   const elTotalBal = $("stTotalBalance");
   if(elTotalBal){
     const carryMin = parseDurationHHMM(ySettings.carry) ?? 0;
-    // Wir rechnen den Vorjahresübertrag immer hinzu, damit es dem echten Kontostand entspricht
     const totalBalance = sumDelta + carryMin;
     
     elTotalBal.textContent = fmtMinutes(totalBalance);
@@ -2850,58 +3099,127 @@ $("btnResetAll").addEventListener("click", ()=>{
     });
   });
 
-// Feature 2: Dynamischer Standard-Tag aus den Jahres-Einstellungen
+  // --- Feature: Aktuelle Uhrzeit per Button eintragen ---
+  let lastFocusedTimeInput = null;
+
+  // 1. Sich merken, in welchem Zeitfeld der Cursor zuletzt war
+  ["t_start1", "t_end1", "t_start2", "t_end2", "t_break"].forEach(id => {
+    $(id)?.addEventListener("focus", (e) => {
+      lastFocusedTimeInput = e.target;
+    });
+  });
+
+  // 2. Klick auf den "⏱️ Jetzt"-Button
+  $("btnNow")?.addEventListener("click", () => {
+    const now = new Date();
+    const hrs = String(now.getHours()).padStart(2, '0');
+    const mins = String(now.getMinutes()).padStart(2, '0');
+    const currentTimeStr = `${hrs}:${mins}`;
+
+    let targetInput = lastFocusedTimeInput;
+    
+    if (!targetInput) {
+      if (!($("t_start1").value || "").trim()) {
+        targetInput = $("t_start1");
+      } else {
+        targetInput = $("t_end1");
+      }
+    }
+
+    if (targetInput) {
+      targetInput.value = currentTimeStr;
+      
+      saveDraft();
+      liveCalc();
+      if (typeof validateDayInputs === "function") validateDayInputs();
+      
+      targetInput.focus();
+    }
+  });
+
+  // --- Feature: Standard-Pause per Button ins Pausen-Feld eintragen ---
+  $("btnStdBreak")?.addEventListener("click", () => {
+    $("t_break").value = "01:05";
+    
+    saveDraft();
+    liveCalc();
+    if (typeof validateDayInputs === "function") validateDayInputs();
+  });
+
+  // --- Feature 4: Kompensationstag (Gleittag) mit einem Klick setzen ---
+  $("btnCompDay")?.addEventListener("click", () => {
+    $("t_start1").value = "";
+    $("t_end1").value = "";
+    $("t_start2").value = "";
+    $("t_end2").value = "";
+    $("t_break").value = "";
+
+    if ($("comp_check")) $("comp_check").checked = true;
+    if ($("vac_check")) $("vac_check").checked = false;
+    if ($("trip_check")) $("trip_check").checked = false;
+    if ($("pre_check")) $("pre_check").checked = false;
+
+    saveDraft();
+    liveCalc();
+    if (typeof validateDayInputs === "function") validateDayInputs();
+  });
+
+  // --- Feature 2: Dynamischer Standard-Tag aus den Jahres-Einstellungen ---
   $("btnStandardDay")?.addEventListener("click", () => {
     const date = $("work_date").value || todayISO();
     const settings = getSettingsForYear(getYearFromISO(date));
     
-    // 1. Hole die dynamischen Standardzeiten aus den Einstellungen (mit deinen aktuellen Werten als Fallback)
     const configStart = settings.stdStart || "06:42";
     const configBreak = settings.stdBreak || "01:05";
     
-    // Holt das komplette Tagessoll (Regulär + Vorholzeit, z.B. 08:24 + 00:12 = 08:36)
     const otTargetMin = targetOvertimeMinutes(settings) || 504;
     
-    // 2. Startzeit NUR eintragen, wenn das Feld aktuell komplett leer ist!
     if (!($("t_start1").value || "").trim()) {
       $("t_start1").value = configStart;
     }
     
-    // 3. Pause NUR eintragen, wenn das Feld aktuell komplett leer ist!
     if (!($("t_break").value || "").trim()) {
       $("t_break").value = configBreak;
     }
     
-    // Nimm die aktuell in den Feldern stehenden Werte (entweder manuell getippt oder aus den Einstellungen geladen)
     const currentStart = $("t_start1").value.trim();
     const currentBreak = $("t_break").value.trim();
     
     const startMin = parseDurationHHMM(currentStart) || parseDurationHHMM(configStart) || 402; 
     const breakMin = parseDurationHHMM(currentBreak) || parseDurationHHMM(configBreak) || 65;  
     
-    // Feierabend = Startzeit + Gesamtes Tagessoll (inkl. Vorholzeit) + Pause
     const endMin = startMin + otTargetMin + breakMin;
     
     $("t_end1").value = fmtMinutes(endMin);
     
-    // Zweiter Block bleibt leer
     $("t_start2").value = "";
     $("t_end2").value = "";
     
-    // Spezial-Flags zurücksetzen
-    $("trip_check").checked = false;
-    $("vac_check").checked = false;
-    $("comp_check").checked = false;
-    $("pre_check").checked = false;
-    
+    if ($("trip_check")) $("trip_check").checked = false;
+    if ($("vac_check")) $("vac_check").checked = false;
+    if ($("comp_check")) $("comp_check").checked = false;
+    if ($("pre_check")) $("pre_check").checked = false;
+
     saveDraft();
     liveCalc();
-    validateDayInputs();
+    if (typeof validateDayInputs === "function") validateDayInputs();
   });
-  
+
+  // --- Feature: Abbrechen & Formular zurücksetzen (Jetzt korrekt platziert!) ---
+  $("btnCancelEdit")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    resetEditState();
+  });
+
+  $("btnClearForm")?.addEventListener("click", () => {
+    resetEditState();
+  });
+    
   $("work_date")?.addEventListener("change", liveCalc);
   
-  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW error", err)); }
+  if ('serviceWorker' in navigator) { 
+    navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW error", err)); 
+  }
 })();
 </script>
 
