@@ -1011,13 +1011,13 @@
           <div class="sheets" id="yearSheets"></div>
           <div class="sheets" id="monthSheets"></div>
 
+		  <div class="kpi">
+            <div class="label">🏖️ Urlaub verfügbar (Jahr)</div>
+            <div class="value" id="kpiVacLeft">–</div>
+          </div>
           <div class="kpi" style="margin-top: 12px;">
             <div class="label">⚖️ Überstunden-Saldo gesamt</div>
             <div class="value" id="kpiBalance2">–</div>
-          </div>
-          <div class="kpi">
-            <div class="label">🏖️ Urlaub verfügbar (Jahr)</div>
-            <div class="value" id="kpiVacLeft">–</div>
           </div>
           <div class="kpi">
             <div class="label">⏩ Vorholkonto (Jahr)</div>
@@ -1637,11 +1637,28 @@ function renderMonthCalendar(){
       if(!(dow === 0 || dow === 6) && !isHolidayISO(isoDay)) el.classList.add("cal-missing");
     }
 
+    // --- ERWEITERTER KLICK-HANDLER ---
+    el.style.cursor = "pointer";
+    el.title = `Klicken, um ${isoDay} zu bearbeiten`;
+
     el.onclick = () => {
-      $("work_date").value = isoDay;
-      loadDraft();
+      if (state.days[isoDay]) {
+        loadDayIntoForm(isoDay);
+      } else {
+        if (typeof resetEditState === "function") resetEditState();
+        $("work_date").value = isoDay;
+        saveDraft();
+        liveCalc();
+        if (typeof validateDayInputs === "function") validateDayInputs();
+      }
+
       refreshAll();
+
+      const timesBtn = document.querySelector('.tabbtn[data-tab="times"]');
+      if (timesBtn) timesBtn.click();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     };
+
     container.appendChild(el);
   }
 }
