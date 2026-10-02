@@ -787,7 +787,23 @@
     .hm-box-trip{ background: rgba(255,255,255,.04); box-shadow: inset 0 0 0 1px rgba(255,210,90,.9); }
     .hm-day.today{ outline:2px solid rgba(255,255,255,.45); outline-offset:-1px; }
     .hm-day.current-month{ box-shadow: inset 0 0 0 999px rgba(255,255,255,.03); }
-  </style>
+  
+    /* ===== Monatstabelle ===== */
+    .mt-wrap{ overflow-x:auto; margin-top:12px; }
+    .card table.mt-table{ table-layout:auto; min-width:680px; }
+    .mt-table th, .mt-table td{ white-space:nowrap; }
+    .mt-table td.mt-note{ white-space:normal; min-width:150px; }
+    .mt-table th.num, .mt-table td.num{ text-align:right; font-variant-numeric:tabular-nums; }
+    .mt-table tbody tr{ cursor:pointer; }
+    .mt-table tbody tr:hover td{ background:rgba(255,255,255,0.05); }
+    .mt-table tfoot td{ font-weight:800; background:rgba(255,255,255,0.06); border-top:1px solid var(--border); }
+    .mt-table .mt-ok{ color:var(--ok); }
+    .mt-table .mt-bad{ color:var(--bad); }
+    .sheetbtn.mt-empty{ opacity:0.45; }
+    .mt-table tr.mt-week td{ background:rgba(255,99,49,0.12); font-weight:800; border-top:1px solid rgba(255,99,49,0.35); cursor:default; }
+    .mt-table tr.mt-week td .mt-weekrange{ font-weight:500; color:var(--muted); margin-left:8px; }
+    .mt-table tr.mt-week:hover td{ background:rgba(255,99,49,0.12); }
+</style>
 </head>
 <body>
 
@@ -808,6 +824,7 @@
       <div class="tabs">
         <button class="tabbtn" data-tab="overview">📋 Übersicht</button>
         <button class="tabbtn active" data-tab="times">🕒 Arbeitszeiten</button>
+        <button class="tabbtn" data-tab="monthtable">🗓️ Monatstabelle</button>
         <button class="tabbtn" data-tab="stats">📊 Statistik</button>
         <button class="tabbtn" data-tab="backup">💾 Backup</button>
       </div>
@@ -1075,6 +1092,27 @@
 
           <div class="small" style="margin: 6px 0 10px;">Klick auf einen Tag in der Liste zum Bearbeiten.</div>
           <div id="daysList" class="dayslist" style="max-height:420px; overflow:auto;"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-monthtable">
+      <div class="card">
+        <h2>Monatstabelle</h2>
+        <div class="small" style="margin-bottom:6px;">Jahr und Monat wählen. Klick auf eine Zeile öffnet den Tag zum Bearbeiten.</div>
+        <div class="sheets" id="mtYearSheets"></div>
+        <div class="sheets" id="mtMonthSheets"></div>
+        <div class="mt-wrap">
+          <table class="mt-table">
+            <thead>
+              <tr>
+                <th>Datum</th><th>Start 1</th><th>Ende 1</th><th>Start 2</th><th>Ende 2</th><th>Pause</th>
+                <th class="num">Arbeitszeit</th><th class="num">Saldo</th><th>Info / Notiz</th>
+              </tr>
+            </thead>
+            <tbody id="mtBody"></tbody>
+            <tfoot id="mtFoot"></tfoot>
+          </table>
         </div>
       </div>
     </section>
@@ -1387,7 +1425,7 @@ function exportMonthCsv(){
     sumSaldo += saldo;
 
     rows.push([
-      isoDay, weekday, day.start1 || "", day.end1 || "", day.start2 || "", day.end2 || "", day.pause || "",
+      isoDay, weekday, day.start1 || "", day.end1 || "", day.start2 || "", day.end2 || "", day.break || "",
       fmtMinutes(daySoll), fmtMinutes(netto), fmtMinutes(saldo),
       day.vacation ? "Ja" : "", day.comp ? "Ja" : "", day.pre ? "Ja" : "", day.trip ? "Ja" : "", day.note || ""
     ]);
@@ -1459,7 +1497,7 @@ function renderMonthCheck(){
 
     let worked = 0;
     if(typeof calcWorkedMinutes === "function") worked = calcWorkedMinutes(day,0) || 0;
-    const pauseMin = day.pause ? (parseDurationHHMM(day.pause) || 0) : 0;
+    const pauseMin = day.break ? (parseDurationHHMM(day.break) || 0) : 0;
 
     if(worked > 720 || pauseMin > 120) unusualDays++;
     if((day.vacation || day.comp || day.pre) && (s1 || e1 || s2 || e2)) flaggedWithTimes++;
@@ -2455,8 +2493,117 @@ function liveCalc(){
   $("calcHint").textContent = hint;
 }
 
+/* ===== Monatstabelle ===== */
+let mtYear = null, mtMonth = null;
+
+function renderMonthTable(){
+  const body = $("mtBody"); const foot = $("mtFoot");
+  if(!body || !foot) return;
+  if(mtYear == null) mtYear = state.ui.selectedYear;
+  if(mtMonth == null) mtMonth = state.ui.selectedMonth;
+
+  const allDates = Object.keys(state.days);
+
+  // Jahr-Buttons (vorhandene Jahre + aktuell gewähltes)
+  const years = Array.from(new Set([...availableYears(), mtYear])).sort((a,b)=>b-a);
+  const yWrap = $("mtYearSheets"); yWrap.innerHTML = "";
+  years.forEach(y=>{
+    const b = document.createElement("button");
+    b.className = "sheetbtn" + (y === mtYear ? " active" : "");
+    b.textContent = String(y);
+    b.addEventListener("click", ()=>{ mtYear = y; renderMonthTable(); });
+    yWrap.appendChild(b);
+  });
+
+  // Monat-Buttons (Monate ohne Einträge sind abgedunkelt)
+  const monthsWithData = new Set(allDates.filter(d=>getYearFromISO(d)===mtYear).map(getMonthFromISO));
+  const mWrap = $("mtMonthSheets"); mWrap.innerHTML = "";
+  for(let m=1; m<=12; m++){
+    const b = document.createElement("button");
+    b.className = "sheetbtn" + (m === mtMonth ? " active" : "") + (monthsWithData.has(m) ? "" : " mt-empty");
+    b.textContent = MONTH_NAMES[m-1];
+    b.addEventListener("click", ()=>{ mtMonth = m; renderMonthTable(); });
+    mWrap.appendChild(b);
+  }
+
+  // Zeilen
+  const dates = allDates.filter(d=>getYearFromISO(d)===mtYear && getMonthFromISO(d)===mtMonth).sort();
+  body.innerHTML = ""; foot.innerHTML = "";
+  if(!dates.length){
+    body.innerHTML = `<tr><td colspan="9" class="small" style="cursor:default;">Keine Einträge in diesem Monat.</td></tr>`;
+    return;
+  }
+
+  const settings = getSettingsForYear(mtYear);
+  const WD = ["So","Mo","Di","Mi","Do","Fr","Sa"];
+  let sumWorked = 0, sumDelta = 0;
+
+  const mkTd = (text, cls)=>{ const td = document.createElement("td"); td.textContent = text; if(cls) td.className = cls; return td; };
+
+  // Nach Kalenderwochen gruppieren (dates ist bereits aufsteigend sortiert)
+  const weeks = []; const weekMap = new Map();
+  for(const iso of dates){
+    const w = isoWeek(iso); const key = `${w.year}-${w.week}`;
+    if(!weekMap.has(key)){ const g = { week: w.week, days: [] }; weekMap.set(key, g); weeks.push(g); }
+    weekMap.get(key).days.push(iso);
+  }
+
+  const fmtShort = iso => `${iso.slice(8,10)}.${iso.slice(5,7)}.`;
+
+  for(const g of weeks){
+    // Wochenwerte (nur Tage dieses Monats, passend zur Monatssumme unten)
+    let wWorked = 0, wDelta = 0;
+    const rows = [];
+    for(const iso of g.days){
+      const day = state.days[iso];
+      const c = calcDayDelta(day, settings);
+      wWorked += c.worked; wDelta += c.delta;
+
+      const dt = new Date(iso + "T00:00:00");
+      const tr = document.createElement("tr");
+      tr.title = "Klicken zum Bearbeiten";
+      tr.appendChild(mkTd(`${WD[dt.getDay()]} ${fmtShort(iso)}`));
+      tr.appendChild(mkTd(day.start1 || "–"));
+      tr.appendChild(mkTd(day.end1 || "–"));
+      tr.appendChild(mkTd(day.start2 || "–"));
+      tr.appendChild(mkTd(day.end2 || "–"));
+      tr.appendChild(mkTd(day.break || "–"));
+      tr.appendChild(mkTd(fmtMinutes(c.worked), "num"));
+      tr.appendChild(mkTd(fmtSignedMinutesHHMM(c.delta), "num " + (c.delta > 0 ? "mt-ok" : c.delta < 0 ? "mt-bad" : "")));
+
+      const flags = [day.trip ? "✈️" : "", day.vacation ? "🏖️" : "", day.comp ? "🧩" : "", day.pre ? "⏩" : ""].filter(Boolean).join(" ");
+      tr.appendChild(mkTd([flags, day.note || ""].filter(Boolean).join("  "), "mt-note"));
+
+      tr.addEventListener("click", ()=>loadDayIntoForm(iso));
+      rows.push(tr);
+    }
+    sumWorked += wWorked; sumDelta += wDelta;
+
+    // Wochen-Kopfzeile mit Wochensumme
+    const wk = weekDatesFromISO(g.days[0]);
+    const spansMonths = getMonthFromISO(wk[0]) !== getMonthFromISO(wk[6]);
+    const head = document.createElement("tr"); head.className = "mt-week";
+    const lbl = document.createElement("td"); lbl.colSpan = 6;
+    lbl.innerHTML = `KW ${g.week}<span class="mt-weekrange">${fmtShort(wk[0])} – ${fmtShort(wk[6])}${spansMonths ? " · Teilwoche" : ""}</span>`;
+    head.appendChild(lbl);
+    head.appendChild(mkTd(fmtMinutes(wWorked), "num"));
+    head.appendChild(mkTd(fmtSignedMinutesHHMM(wDelta), "num " + (wDelta > 0 ? "mt-ok" : wDelta < 0 ? "mt-bad" : "")));
+    head.appendChild(mkTd(""));
+    body.appendChild(head);
+    rows.forEach(r => body.appendChild(r));
+  }
+
+  const ftr = document.createElement("tr");
+  const lbl = mkTd(`Summe · ${dates.length} ${dates.length === 1 ? "Tag" : "Tage"}`); lbl.colSpan = 6;
+  ftr.appendChild(lbl);
+  ftr.appendChild(mkTd(fmtMinutes(sumWorked), "num"));
+  ftr.appendChild(mkTd(fmtSignedMinutesHHMM(sumDelta), "num " + (sumDelta > 0 ? "mt-ok" : sumDelta < 0 ? "mt-bad" : "")));
+  ftr.appendChild(mkTd(""));
+  foot.appendChild(ftr);
+}
+
 function refreshAll(){
-  renderOverview(); renderTimesKPIs(); renderSheets(); renderDaysTable(); liveCalc(); renderStats(); renderMonthCalendar(); validateDayInputs(); renderMonthSummary(); renderMonthCheck();
+  renderOverview(); renderTimesKPIs(); renderSheets(); renderDaysTable(); liveCalc(); renderStats(); renderMonthCalendar(); validateDayInputs(); renderMonthSummary(); renderMonthCheck(); renderMonthTable();
 }
 
 document.querySelectorAll(".tabbtn").forEach(btn=>{
@@ -2465,6 +2612,7 @@ document.querySelectorAll(".tabbtn").forEach(btn=>{
     document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
     if(btn.dataset.tab==="stats"){ $("tab-stats").classList.add("active"); renderStatsChartAfterLayout(); }
     else $(`tab-${btn.dataset.tab}`).classList.add("active");
+    if(btn.dataset.tab==="monthtable") renderMonthTable();
   });
 });
 
