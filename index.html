@@ -800,6 +800,9 @@
     .mt-table .mt-ok{ color:var(--ok); }
     .mt-table .mt-bad{ color:var(--bad); }
     .sheetbtn.mt-empty{ opacity:0.45; }
+    .card .mt-table td.tm{ text-align:left; font-variant-numeric:tabular-nums; }
+    .card .mt-table td.tm.mt-dur{ color:var(--muted); }
+    .card .mt-table td.mt-note{ text-align:left; }
     .mt-table tr.mt-week td{ background:rgba(255,99,49,0.12); font-weight:800; border-top:1px solid rgba(255,99,49,0.35); cursor:default; }
     .mt-table tr.mt-week td .mt-weekrange{ font-weight:500; color:var(--muted); margin-left:8px; }
     .mt-table tr.mt-week:hover td{ background:rgba(255,99,49,0.12); }
@@ -1106,7 +1109,7 @@
           <table class="mt-table">
             <thead>
               <tr>
-                <th>Datum</th><th>Start 1</th><th>Ende 1</th><th>Start 2</th><th>Ende 2</th><th>Pause</th>
+                <th>Datum</th><th>Start 1</th><th>Ende 1</th><th title="Ende 1 − Start 1">Dauer 1</th><th>Start 2</th><th>Ende 2</th><th title="Ende 2 − Start 2">Dauer 2</th><th>Pause</th>
                 <th class="num">Arbeitszeit</th><th class="num">Saldo</th><th>Info / Notiz</th>
               </tr>
             </thead>
@@ -2530,7 +2533,7 @@ function renderMonthTable(){
   const dates = allDates.filter(d=>getYearFromISO(d)===mtYear && getMonthFromISO(d)===mtMonth).sort();
   body.innerHTML = ""; foot.innerHTML = "";
   if(!dates.length){
-    body.innerHTML = `<tr><td colspan="9" class="small" style="cursor:default;">Keine Einträge in diesem Monat.</td></tr>`;
+    body.innerHTML = `<tr><td colspan="11" class="small" style="cursor:default;">Keine Einträge in diesem Monat.</td></tr>`;
     return;
   }
 
@@ -2539,6 +2542,11 @@ function renderMonthTable(){
   let sumWorked = 0, sumDelta = 0;
 
   const mkTd = (text, cls)=>{ const td = document.createElement("td"); td.textContent = text; if(cls) td.className = cls; return td; };
+  // Dauer zwischen Start und Ende (hh:mm), "–" wenn eine Zeit fehlt oder Ende vor Start liegt
+  const spanText = (a, b)=>{
+    const st = parseDurationHHMM(a || ""), en = parseDurationHHMM(b || "");
+    return (st != null && en != null && en >= st) ? fmtMinutes(en - st) : "–";
+  };
 
   // Nach Kalenderwochen gruppieren (dates ist bereits aufsteigend sortiert)
   const weeks = []; const weekMap = new Map();
@@ -2563,11 +2571,13 @@ function renderMonthTable(){
       const tr = document.createElement("tr");
       tr.title = "Klicken zum Bearbeiten";
       tr.appendChild(mkTd(`${WD[dt.getDay()]} ${fmtShort(iso)}`));
-      tr.appendChild(mkTd(day.start1 || "–"));
-      tr.appendChild(mkTd(day.end1 || "–"));
-      tr.appendChild(mkTd(day.start2 || "–"));
-      tr.appendChild(mkTd(day.end2 || "–"));
-      tr.appendChild(mkTd(day.break || "–"));
+      tr.appendChild(mkTd(day.start1 || "–", "tm"));
+      tr.appendChild(mkTd(day.end1 || "–", "tm"));
+      tr.appendChild(mkTd(spanText(day.start1, day.end1), "tm mt-dur"));
+      tr.appendChild(mkTd(day.start2 || "–", "tm"));
+      tr.appendChild(mkTd(day.end2 || "–", "tm"));
+      tr.appendChild(mkTd(spanText(day.start2, day.end2), "tm mt-dur"));
+      tr.appendChild(mkTd(day.break || "–", "tm"));
       tr.appendChild(mkTd(fmtMinutes(c.worked), "num"));
       tr.appendChild(mkTd(fmtSignedMinutesHHMM(c.delta), "num " + (c.delta > 0 ? "mt-ok" : c.delta < 0 ? "mt-bad" : "")));
 
@@ -2583,7 +2593,7 @@ function renderMonthTable(){
     const wk = weekDatesFromISO(g.days[0]);
     const spansMonths = getMonthFromISO(wk[0]) !== getMonthFromISO(wk[6]);
     const head = document.createElement("tr"); head.className = "mt-week";
-    const lbl = document.createElement("td"); lbl.colSpan = 6;
+    const lbl = document.createElement("td"); lbl.colSpan = 8;
     lbl.innerHTML = `KW ${g.week}<span class="mt-weekrange">${fmtShort(wk[0])} – ${fmtShort(wk[6])}${spansMonths ? " · Teilwoche" : ""}</span>`;
     head.appendChild(lbl);
     head.appendChild(mkTd(fmtMinutes(wWorked), "num"));
@@ -2594,7 +2604,7 @@ function renderMonthTable(){
   }
 
   const ftr = document.createElement("tr");
-  const lbl = mkTd(`Summe · ${dates.length} ${dates.length === 1 ? "Tag" : "Tage"}`); lbl.colSpan = 6;
+  const lbl = mkTd(`Summe · ${dates.length} ${dates.length === 1 ? "Tag" : "Tage"}`); lbl.colSpan = 8;
   ftr.appendChild(lbl);
   ftr.appendChild(mkTd(fmtMinutes(sumWorked), "num"));
   ftr.appendChild(mkTd(fmtSignedMinutesHHMM(sumDelta), "num " + (sumDelta > 0 ? "mt-ok" : sumDelta < 0 ? "mt-bad" : "")));
