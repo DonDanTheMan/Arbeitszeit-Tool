@@ -842,6 +842,9 @@
     .mt-todaytag{ margin-left:8px; font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px; background:rgba(255,99,49,0.28); color:#ffd9cb; }
     .app-footer{ margin-top:14px; text-align:center; opacity:.7; font-size:12px; }
     #lastBackupInfo{ margin-right:6px; white-space:nowrap; }
+    .tab-meta{ margin-left:auto; align-self:center; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    #syncInfo{ background:transparent; color:inherit; border:1px solid rgba(255,255,255,0.18); border-radius:999px; padding:4px 10px; cursor:pointer; white-space:nowrap; font:inherit; font-size:12.5px; }
+    #syncInfo:hover{ border-color:rgba(255,255,255,0.4); }
     #kpiEndNote{ margin-left:6px; font-weight:400; }
 </style>
 </head>
@@ -867,7 +870,7 @@
         <button class="tabbtn" data-tab="monthtable">🗓️ Monatstabelle</button>
         <button class="tabbtn" data-tab="stats">📊 Statistik</button>
         <button class="tabbtn" data-tab="backup">💾 Backup</button>
-        <span class="small" id="lastBackupInfo" style="margin-left:auto; align-self:center;"></span>
+        <span class="tab-meta"><span class="small" id="lastBackupInfo"></span><button type="button" class="small" id="syncInfo" title="Cloud-Sync">☁️</button></span>
       </div>
     </div>
   </div>
@@ -2218,7 +2221,7 @@ function loadState(){
     return obj;
   }catch(e){ return defaultState(); }
 }
-function saveState(state){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+function saveState(state){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); if(typeof CloudSync!=="undefined" && CloudSync) CloudSync.onLocalChange(); }
 
 const DRAFT_FIELDS = ["t_start1","t_end1","t_start2","t_end2","t_break","trip_check","tr_out","tr_start1","tr_end1","tr_start2","tr_end2","tr_break","tr_back","work_note","vac_check","comp_check","pre_check","set_regular","set_vorhol","set_carry","set_urlaub","set_vorholtage","backupIn"];
 
@@ -2806,7 +2809,7 @@ function renderMonthTable(){
 
 /* ===== Info: letztes Backup, Version ===== */
 const LAST_BACKUP_KEY = "azeit.v1.lastBackup";
-const APP_BUILD = "05.11.2026 13:36";
+const APP_BUILD = "05.11.2026 15:10";
 
 function renderBackupInfo(){
   const el = $("lastBackupInfo"); if(!el) return;
@@ -3115,7 +3118,7 @@ state.days[date] = day;
 });
 
 document.addEventListener("keydown", (e) => {
-  if(e.key !== "Enter") return; const el = e.target; if(!el || el.tagName === "TEXTAREA" || el.type === "checkbox" || el.type === "radio") return;
+  if(e.key !== "Enter") return; const el = e.target; if(el && el.closest && el.closest("#syncDialog")) return; if(!el || el.tagName === "TEXTAREA" || el.type === "checkbox" || el.type === "radio") return;
   if(el.tagName !== "INPUT" && el.tagName !== "SELECT") return;
   e.preventDefault();
   const list = Array.from(document.querySelectorAll('input, select, textarea')).filter(x => !x.disabled && x.tabIndex !== -1 && x.offsetParent !== null && x.tagName !== "BUTTON" && x.type !== "checkbox" && x.type !== "radio");
@@ -3632,6 +3635,195 @@ $("btnResetAll").addEventListener("click", ()=>{
     navigator.serviceWorker.register('./sw.js').catch(err => console.log("SW error", err)); 
   }
 })();
+
+/* ===== Cloud-Sync (Supabase, eigenes Projekt, ohne Bibliothek) ===== */
+const SUPABASE_URL = "";       // optional fest eintragen, sonst im Sync-Dialog eingeben
+const SUPABASE_ANON_KEY = "";  // anon/publishable Key (NIE den service_role Key)
+var CloudSync = (function(){
+  const META_KEY = "azeit.v1.sync";
+  const $s = (id)=>document.getElementById(id);
+  let meta = loadMeta();
+  let running = false, again = false, timer = null, status = {kind:"idle", msg:""};
+
+  function loadMeta(){
+    try{ const m = JSON.parse(localStorage.getItem(META_KEY)||"null"); if(m && typeof m==="object"){ m.base = m.base||{days:{},years:{}}; m.base.days = m.base.days||{}; m.base.years = m.base.years||{}; m.since = m.since||{days:null,years:null}; return m; } }catch(e){}
+    return { cfg:{url:"",key:""}, session:null, base:{days:{},years:{}}, since:{days:null,years:null}, first:false, last:null };
+  }
+  function saveMeta(){ try{ localStorage.setItem(META_KEY, JSON.stringify(meta)); }catch(e){} }
+  function cfg(){ return { url:(meta.cfg&&meta.cfg.url)||SUPABASE_URL, key:(meta.cfg&&meta.cfg.key)||SUPABASE_ANON_KEY }; }
+  function configured(){ const c=cfg(); return !!(c.url && c.key); }
+  function sortKeys(v){
+    if(Array.isArray(v)) return v.map(sortKeys);
+    if(v && typeof v==="object"){ const o={}; Object.keys(v).sort().forEach(k=>{ if(v[k]!==undefined) o[k]=sortKeys(v[k]); }); return o; }
+    return v;
+  }
+  function canon(v){ return JSON.stringify(sortKeys(v)); }
+
+  async function http(url, opts){
+    let res;
+    try{ res = await fetch(url, opts); }catch(e){ const err=new Error("offline"); err.offline=true; throw err; }
+    return res;
+  }
+  function baseUrl(){ return cfg().url.replace(/\/+$/,""); }
+  async function authCall(grant, body){
+    const res = await http(baseUrl()+"/auth/v1/token?grant_type="+grant, { method:"POST", headers:{ apikey:cfg().key, "Content-Type":"application/json" }, body:JSON.stringify(body) });
+    const j = await res.json().catch(()=>({}));
+    if(!res.ok){ const err=new Error(j.error_description||j.msg||j.message||("Login fehlgeschlagen ("+res.status+")")); err.auth=true; throw err; }
+    meta.session = { access:j.access_token, refresh:j.refresh_token, exp:Date.now()+((j.expires_in||3600)*1000), uid:j.user&&j.user.id, email:(j.user&&j.user.email)||(meta.session&&meta.session.email)||"" };
+    saveMeta();
+  }
+  async function refresh(){
+    if(!meta.session||!meta.session.refresh) throw Object.assign(new Error("Nicht angemeldet"),{auth:true});
+    try{ await authCall("refresh_token",{refresh_token:meta.session.refresh}); }
+    catch(e){ if(e.auth){ meta.session=null; saveMeta(); } throw e; }
+  }
+  async function api(path, opts, retried){
+    if(!meta.session) throw Object.assign(new Error("Nicht angemeldet"),{auth:true});
+    if(meta.session.exp - Date.now() < 30000 && !retried) await refresh();
+    const o = Object.assign({}, opts||{});
+    o.headers = Object.assign({ apikey:cfg().key, Authorization:"Bearer "+meta.session.access, "Content-Type":"application/json" }, o.headers||{});
+    const res = await http(baseUrl()+"/rest/v1/"+path, o);
+    if(res.status===401 && !retried){ await refresh(); return api(path, opts, true); }
+    if(!res.ok){ const t=await res.text().catch(()=> ""); throw new Error("Server "+res.status+(t?": "+t.slice(0,120):"")); }
+    return res;
+  }
+
+  const COLS = { days:{table:"az_days", key:"date"}, years:{table:"az_settings", key:"year"} };
+  function localMap(kind){ return kind==="days" ? state.days : state.yearSettings; }
+
+  async function pullKind(kind){
+    const c = COLS[kind]; const rows=[]; let offset=0;
+    for(;;){
+      let q = c.table+"?select="+c.key+",data,deleted,updated_at&order=updated_at.asc,"+c.key+".asc&limit=1000&offset="+offset;
+      if(meta.since[kind]) q += "&updated_at=gt."+encodeURIComponent(meta.since[kind]);
+      const part = await (await api(q)).json();
+      rows.push.apply(rows, part); if(part.length<1000) break; offset+=1000;
+    }
+    return rows;
+  }
+  function applyRows(kind, rows){
+    const c = COLS[kind], loc = localMap(kind), base = meta.base[kind]; let changed=false, maxTs = meta.since[kind];
+    rows.forEach(r=>{
+      const k = r[c.key]; if(r.updated_at && (!maxTs || r.updated_at>maxTs)) maxTs=r.updated_at;
+      const lc = (k in loc) ? canon(loc[k]) : null;
+      const dirty = meta.first && lc !== (k in base ? base[k] : null); // nach dem Erstabgleich gewinnt lokal Geändertes
+      if(dirty) return;
+      if(r.deleted){ if(k in loc){ delete loc[k]; changed=true; } delete base[k]; }
+      else { const rc = canon(r.data); if(lc!==rc){ loc[k]=r.data; changed=true; } base[k]=rc; }
+    });
+    meta.since[kind]=maxTs; return changed;
+  }
+  function pending(){
+    let n=0;
+    ["days","years"].forEach(kind=>{ const loc=localMap(kind), base=meta.base[kind];
+      Object.keys(loc).forEach(k=>{ if(canon(loc[k])!==base[k]) n++; });
+      Object.keys(base).forEach(k=>{ if(!(k in loc)) n++; }); });
+    return n;
+  }
+  async function pushKind(kind){
+    const c = COLS[kind], loc = localMap(kind), base = meta.base[kind], rows=[];
+    Object.keys(loc).forEach(k=>{ const cc=canon(loc[k]); if(cc!==base[k]){ const r={user_id:meta.session.uid,data:loc[k],deleted:false}; r[c.key]=k; rows.push([r,cc]); } });
+    Object.keys(base).forEach(k=>{ if(!(k in loc)){ const r={user_id:meta.session.uid,data:{},deleted:true}; r[c.key]=k; rows.push([r,null]); } });
+    for(let i=0;i<rows.length;i+=200){
+      const chunk = rows.slice(i,i+200);
+      await api(c.table+"?on_conflict=user_id,"+c.key, { method:"POST", headers:{ Prefer:"resolution=merge-duplicates,return=minimal" }, body:JSON.stringify(chunk.map(x=>x[0])) });
+      chunk.forEach(([r,cc])=>{ const k=r[c.key]; if(cc===null) delete base[k]; else base[k]=cc; });
+      saveMeta();
+    }
+  }
+
+  async function run(){
+    if(!configured() || !meta.session) { render(); return; }
+    if(running){ again=true; return; }
+    running=true; setStatus("busy"); 
+    try{
+      // Schutz: lokal komplett leer, aber Basis bekannt -> nicht Loeschungen pushen, sondern neu laden
+      if(Object.keys(state.days).length===0 && Object.keys(meta.base.days).length>0){ meta.base={days:{},years:{}}; meta.since={days:null,years:null}; meta.first=false; }
+      let changed=false;
+      for(const kind of ["days","years"]){
+        const rows = await pullKind(kind);
+        if(applyRows(kind, rows)) changed=true;
+      }
+      meta.first = true; saveMeta();
+      if(changed){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} refreshAll(); }
+      for(const kind of ["days","years"]) await pushKind(kind);
+      meta.last = new Date().toISOString(); saveMeta(); setStatus("ok");
+    }catch(e){
+      if(e.offline) setStatus("offline"); else if(e.auth) setStatus("auth", e.message); else setStatus("error", e.message);
+    }finally{
+      running=false; if(again){ again=false; schedule(300); }
+    }
+  }
+  function schedule(ms){ clearTimeout(timer); timer=setTimeout(run, ms==null?1500:ms); }
+  function onLocalChange(){ if(meta.session && configured()){ render(); schedule(); } }
+
+  function fmtTime(iso){ if(!iso) return "–"; const d=new Date(iso); return d.toLocaleDateString("de-CH")+" "+d.toLocaleTimeString("de-CH",{hour:"2-digit",minute:"2-digit"}); }
+  function setStatus(kind,msg){ status={kind,msg:msg||""}; render(); }
+  function render(){
+    const b=$s("syncInfo"); if(!b) return;
+    let t, tip="";
+    if(!configured()){ t="☁️ Sync einrichten"; }
+    else if(!meta.session){ t = status.kind==="auth" ? "☁️ ⚠ Anmelden" : "☁️ Anmelden"; }
+    else {
+      const p=pending();
+      if(status.kind==="busy") t="☁️ synchronisiere…";
+      else if(status.kind==="offline") t="☁️ offline"+(p?" · "+p+" offen":"");
+      else if(status.kind==="error") t="☁️ ⚠ Fehler"+(p?" · "+p+" offen":"");
+      else if(p) t="☁️ "+p+" offen";
+      else t="☁️ synchron";
+      tip = (meta.session.email||"")+" · zuletzt: "+fmtTime(meta.last)+(status.msg?" · "+status.msg:"");
+    }
+    b.textContent=t; b.title=tip;
+    const st=$s("syncState");
+    if(st){
+      st.textContent = !configured() ? "Noch nicht eingerichtet." : !meta.session ? "Nicht angemeldet."+(status.msg?" "+status.msg:"")
+        : "Angemeldet als "+(meta.session.email||"?")+". Letzter Abgleich: "+fmtTime(meta.last)+". Offen: "+pending()+(status.kind==="error"||status.kind==="auth"?" – "+status.msg:status.kind==="offline"?" – offline":"");
+    }
+    const loggedIn=!!meta.session; 
+    ["syncCfgBox","syncLoginBox"].forEach(id=>{ const e=$s(id); if(e) e.style.display = loggedIn?"none":""; });
+    ["btnSyncNow","btnSyncLogout"].forEach(id=>{ const e=$s(id); if(e) e.style.display = loggedIn?"":"none"; });
+  }
+
+  async function login(){
+    const url=$s("sync_url").value.trim(), key=$s("sync_key").value.trim(), em=$s("sync_email").value.trim(), pw=$s("sync_pw").value;
+    if(!url||!key||!em||!pw){ setStatus("auth","Bitte alle Felder ausfüllen."); return; }
+    if(/service_role/i.test(key) || (key.split(".").length===3 && (()=>{try{return JSON.parse(atob(key.split(".")[1].replace(/-/g,"+").replace(/_/g,"/"))).role==="service_role";}catch(e){return false;}})())){ setStatus("auth","Das ist ein service_role Key – bitte nur den anon/publishable Key verwenden."); return; }
+    const wasUid = meta.session && meta.session.uid;
+    meta.cfg={url:url.replace(/\/+$/,""),key}; setStatus("busy");
+    try{
+      await authCall("password",{email:em,password:pw});
+      $s("sync_pw").value="";
+      if(wasUid && wasUid!==meta.session.uid){ meta.base={days:{},years:{}}; meta.since={days:null,years:null}; meta.first=false; }
+      saveMeta(); await run();
+    }catch(e){ if(e.offline) setStatus("offline"); else setStatus("auth", e.message); }
+  }
+  async function logout(){
+    try{ if(meta.session) await http(baseUrl()+"/auth/v1/logout",{method:"POST",headers:{apikey:cfg().key,Authorization:"Bearer "+meta.session.access}}); }catch(e){}
+    meta.session=null; meta.base={days:{},years:{}}; meta.since={days:null,years:null}; meta.first=false; saveMeta(); setStatus("idle");
+  }
+
+  function openDialog(){
+    const d=$s("syncDialog"); if(!d) return;
+    const c=cfg(); $s("sync_url").value=c.url; $s("sync_key").value=c.key; if(meta.session) $s("sync_email").value=meta.session.email||"";
+    render(); d.showModal();
+  }
+  function init(){
+    const b=$s("syncInfo"); if(b) b.addEventListener("click", openDialog);
+    $s("btnSyncLogin").addEventListener("click", login);
+    $s("btnSyncNow").addEventListener("click", ()=>run());
+    $s("btnSyncLogout").addEventListener("click", ()=>{ if(confirm("Abmelden? Lokale Daten bleiben erhalten.")) logout(); });
+    $s("btnSyncClose").addEventListener("click", ()=>$s("syncDialog").close());
+    $s("syncDialog").addEventListener("keydown", (e)=>{ if(e.key==="Enter" && e.target.tagName==="INPUT"){ e.preventDefault(); if(!meta.session) login(); } });
+    window.addEventListener("online", ()=>schedule(500));
+    window.addEventListener("offline", ()=>setStatus("offline"));
+    document.addEventListener("visibilitychange", ()=>{ if(document.visibilityState==="visible") schedule(500); });
+    setInterval(()=>{ if(document.visibilityState==="visible") run(); }, 120000);
+    render(); if(meta.session) schedule(800);
+  }
+  return { init, onLocalChange, run, _meta:()=>meta };
+})();
+
+document.addEventListener("DOMContentLoaded", ()=>CloudSync.init());
 </script>
 
 <script>
@@ -3661,8 +3853,31 @@ $("btnResetAll").addEventListener("click", ()=>{
   </form>
 </dialog>
 
+<dialog id="syncDialog">
+  <div class="yd-wrap">
+    <div class="yd-head"><div class="yd-title">☁️ Cloud-Sync</div><div class="yd-sub" id="syncState">–</div></div>
+    <div id="syncCfgBox" class="yd-grid">
+      <div class="yd-field sy-wide"><label for="sync_url">Supabase Project URL</label><input id="sync_url" placeholder="https://xxxx.supabase.co" autocomplete="off" /></div>
+      <div class="yd-field sy-wide"><label for="sync_key">anon / publishable Key</label><input id="sync_key" placeholder="eyJ… oder sb_publishable_…" autocomplete="off" /></div>
+    </div>
+    <div id="syncLoginBox" class="yd-grid" style="margin-top:12px;">
+      <div class="yd-field sy-half"><label for="sync_email">E-Mail</label><input id="sync_email" type="email" autocomplete="username" /></div>
+      <div class="yd-field sy-half"><label for="sync_pw">Passwort</label><input id="sync_pw" type="password" autocomplete="current-password" /></div>
+    </div>
+    <div class="yd-actions">
+      <button type="button" class="btn secondary" id="btnSyncLogout" style="display:none">Abmelden</button>
+      <button type="button" class="btn secondary" id="btnSyncNow" style="display:none">Jetzt abgleichen</button>
+      <button type="button" class="btn" id="btnSyncLogin">Anmelden &amp; abgleichen</button>
+      <button type="button" class="btn secondary" id="btnSyncClose">Schliessen</button>
+    </div>
+  </div>
+</dialog>
+
 <style>
-  #yearDialog{ border: 1px solid rgba(255,255,255,0.18); border-radius: 14px; background: rgba(20,20,20,0.98); color: rgb(255,255,255); padding: 0; max-width: 720px; width: calc(100% - 24px); box-shadow: 0 18px 48px rgba(0,0,0,0.55); }
+  #yearDialog, #syncDialog{ border: 1px solid rgba(255,255,255,0.18); border-radius: 14px; background: rgba(20,20,20,0.98); color: rgb(255,255,255); padding: 0; max-width: 720px; width: calc(100% - 24px); box-shadow: 0 18px 48px rgba(0,0,0,0.55); }
+  #syncDialog::backdrop{ background: rgba(0,0,0,0.55); }
+  .yd-field.sy-wide{ grid-column: span 12; } .yd-field.sy-half{ grid-column: span 6; }
+  @media (max-width: 820px){ .yd-field.sy-half{ grid-column: span 12; } }
   #yearDialog::backdrop{ background: rgba(0,0,0,0.55); }
   .yd-wrap{ padding: 16px; } .yd-head{ margin-bottom: 12px; } .yd-title{ font-weight: 900; letter-spacing: .2px; font-size: 16px; } .yd-sub{ color: rgba(255,255,255,0.70); font-size: 12.5px; margin-top: 4px; }
   .yd-grid{ display:grid; grid-template-columns: repeat(12, 1fr); gap: 12px; } .yd-field{ grid-column: span 4; } .yd-actions{ display:flex; justify-content:flex-end; gap: 10px; margin-top: 14px; }
