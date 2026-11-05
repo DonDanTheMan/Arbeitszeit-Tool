@@ -803,12 +803,36 @@
     .card .mt-table td.tm{ text-align:left; font-variant-numeric:tabular-nums; }
     .card .mt-table td.tm.mt-dur{ color:var(--muted); }
     .card .mt-table td.mt-note{ text-align:left; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; min-width:120px; }
-    .card .mt-table th, .card .mt-table td{ padding-left:6px; padding-right:6px; }
+    .card .mt-table th, .card .mt-table td{ padding:9px 10px; }
     /* ===== Dienstreise-Felder im Formular ===== */
     .trip-box{ margin: 8px 0 10px; padding: 10px 12px 12px; border: 1px solid rgba(255,210,90,.45); border-radius: 12px; background: rgba(255,210,90,.06); }
     .trip-title{ font-weight: 800; font-size: 13px; margin-bottom: 8px; }
     .trip-title .small{ font-weight: 400; }
     .mt-table tr.mt-hastrip td{ border-bottom: none; }
+    /* ===== gemeinsames Layout der Tabs Arbeitszeiten / Monatstabelle ===== */
+    .card-head{ display:flex; align-items:center; justify-content:space-between; gap:8px 12px; flex-wrap:wrap; margin:0 0 14px; min-height:34px; }
+    .card .card-head h2{ margin:0; font-size:16px; font-weight:700; letter-spacing:.2px; }
+    .card-head .head-actions{ display:flex; gap:6px; }
+    .section-head{ display:flex; align-items:baseline; justify-content:space-between; gap:4px 12px; flex-wrap:wrap; margin:18px 0 10px; padding-top:14px; border-top:1px solid var(--border); }
+    .section-head h3{ margin:0; font-size:14px; font-weight:700; }
+    .flags-row{ display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; margin:2px 0 4px; }
+    .flags-row label{ display:flex; align-items:center; margin:0; cursor:pointer; }
+    .btn-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(135px, 1fr)); gap:8px; }
+    .btn-grid .btn{ width:100%; display:flex; align-items:center; justify-content:center; gap:6px; white-space:nowrap; }
+    #calcHint{ display:block; margin-top:8px; min-height:1.2em; }
+    .work-layout{ align-items:stretch; }
+    .list-card{ display:flex; flex-direction:column; }
+    .list-card #daysList{ flex:1 1 0; min-height:260px; max-height:680px; overflow:auto; }
+    .list-card .kpi:last-of-type{ margin-bottom:0; }
+    @media (max-width: 940px){ .work-layout{ grid-template-columns: 1fr; } .list-card #daysList{ flex:none; max-height:520px; } }
+    .mt-toolbar{ display:flex; flex-direction:column; gap:12px; margin-bottom:14px; }
+    .mt-selector{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; }
+    .mt-selector .sheets{ margin:0; }
+    .mt-filterrow{ display:flex; gap:8px; align-items:stretch; }
+    .mt-filterrow #daySearch{ flex:1 1 auto; min-width:160px; }
+    .mt-filterrow #daySort{ flex:0 0 190px; width:190px; }
+    .mt-chips{ gap:8px; }
+    .card .mt-table th:not(:last-child){ width:1%; }
     .mt-table tr.mt-triprow td{ color: var(--muted); font-size: 12.5px; background: rgba(255,210,90,0.05); }
     .mt-table tr.mt-week td{ background:rgba(255,99,49,0.12); font-weight:800; border-top:1px solid rgba(255,99,49,0.35); cursor:default; }
     .mt-table tr.mt-week td .mt-weekrange{ font-weight:500; color:var(--muted); margin-left:8px; }
@@ -894,9 +918,9 @@
     <section class="panel active" id="tab-times">
       <div class="row work-layout">
         <div class="card">
-			<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-			  <h3 style="margin: 0;">Tag erfassen / bearbeiten</h3>
-			  <div style="display: flex; gap: 6px;">
+			<div class="card-head">
+			  <h2>Tag erfassen / bearbeiten</h2>
+			  <div class="head-actions">
 				<!-- NEU: Der Pausen-Schnellknopf -->
 				<button class="btn secondary small" id="btnStdBreak" type="button" title="Setzt das Pausenfeld fest auf 01:05" style="display: flex; align-items: center; gap: 4px; padding: 6px 10px;">
 				  ☕ Pause
@@ -936,9 +960,20 @@
             <div id="dayWarnings" class="day-warnings"></div>
             
             <div style="grid-column: span 12;">
-              <label title="Kennzeichnet den Tag als Dienstreise.">
+              <div class="flags-row">
+                <label title="Kennzeichnet den Tag als Dienstreise.">
                 <input id="trip_check" type="checkbox" /> ✈️ Dienstreise
               </label>
+                <label title="Urlaubstag: reduziert das Jahressoll und das Urlaubskonto.">
+                    <input id="vac_check" type="checkbox" /> 🏖️ Urlaub
+                  </label>
+                  <label title="Kompensation: Belastet das Überstundenkonto mit der Sollzeit für diesen freien Tag.">
+                    <input id="comp_check" type="checkbox" /> 🧩 Kompensation
+                  </label>
+                  <label title="Vorholtag: Reduziert das Vorholtage-Saldo.">
+                    <input id="pre_check" type="checkbox" /> ⏩ Vorholtag
+                  </label>
+              </div>
               <div id="tripFields" class="trip-box" style="display:none;">
                 <div class="trip-title">✈️ Dienstreise-Zeiten <span class="small">· zählen zusammen mit den Büro-Zeiten</span></div>
                 <div class="grid">
@@ -976,30 +1011,18 @@
                   </div>
                 </div>
               </div>
-              <div class="grid" style="margin-top: 6px;">
+              <div class="grid" style="margin-top: 12px;">
                 <div style="grid-column: span 12;">
                   <label for="work_note" title="Freitext-Notiz zum Tag.">Notiz</label>
                   <input id="work_note" placeholder="z.B. Kunde XY / Projekt…" />
                 </div>
               </div>
-              <div style="grid-column: span 12; margin-top: 8px;">
-                <div class="row" style="gap:14px;">
-                  <label title="Urlaubstag: reduziert das Jahressoll und das Urlaubskonto.">
-                    <input id="vac_check" type="checkbox" /> 🏖️ Urlaub
-                  </label>
-                  <label title="Kompensation: Belastet das Überstundenkonto mit der Sollzeit für diesen freien Tag.">
-                    <input id="comp_check" type="checkbox" /> 🧩 Kompensation
-                  </label>
-                  <label title="Vorholtag: Reduziert das Vorholtage-Saldo.">
-                    <input id="pre_check" type="checkbox" /> ⏩ Vorholtag
-                  </label>
-                </div>
-              </div>
+              
             </div>
           </div>
 
-			<div class="row" style="margin-top:12px;">
-			  <div class="row" style="margin-top:12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+			<div style="margin-top:16px;">
+			  <div class="btn-grid">
 				  <button class="btn" id="btnSaveDay" title="Speichert den Tag">💾 Tag speichern</button>
 				  
 				  <!-- Feature 2: Abbrechen-Button (Standardmäßig ausgeblendet, erscheint beim Bearbeiten) -->
@@ -1066,16 +1089,13 @@
         </div>
                  
         <div class="card list-card">
-          <h2>Jahr/Monat & Tage</h2>
-          <div class="small" style="margin-bottom:6px;">Jahresblätter & Monatsblätter (Filter):</div>
-          <div class="sheets" id="yearSheets"></div>
-          <div class="sheets" id="monthSheets"></div>
+          <div class="card-head"><h2>Konten & Tage</h2></div>
 
 		  <div class="kpi">
             <div class="label">🏖️ Urlaub verfügbar (Jahr)</div>
             <div class="value" id="kpiVacLeft">–</div>
           </div>
-          <div class="kpi" style="margin-top: 12px;">
+          <div class="kpi">
             <div class="label">⚖️ Überstunden-Saldo gesamt</div>
             <div class="value" id="kpiBalance2">–</div>
           </div>
@@ -1110,19 +1130,38 @@
 			</div>
 
 		  
-          <div class="row" style="margin: 8px 0 10px; gap:8px; align-items:stretch;">
-            <input id="daySearch" placeholder="Suchen (Notiz, Datum)…" style="flex:1; min-width: 220px;" />
-            <select id="daySort" style="width: 170px;">
-              <option value="date_desc">Datum ↓</option>
+          <div class="section-head">
+            <h3 id="daysListTitle">Tage</h3>
+            <span class="small">Klick auf einen Tag zum Bearbeiten · Monat & Filter im Tab „Monatstabelle“</span>
+          </div>
+          <div id="daysList" class="dayslist"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-monthtable">
+      <div class="card">
+        <div class="card-head">
+          <h2>Monatstabelle</h2>
+          <span class="small">Klick auf eine Zeile öffnet den Tag zum Bearbeiten.</span>
+        </div>
+        <div class="mt-toolbar">
+          <div class="mt-selector">
+            <div class="sheets" id="mtYearSheets"></div>
+            <div class="sheets" id="mtMonthSheets"></div>
+          </div>
+          <div class="mt-filterrow">
+            <input id="daySearch" placeholder="Suchen (Notiz, Datum)…" />
+            <select id="daySort">
               <option value="date_asc">Datum ↑</option>
+              <option value="date_desc">Datum ↓</option>
               <option value="delta_desc">Δ ↓</option>
               <option value="delta_asc">Δ ↑</option>
               <option value="worked_desc">Gearbeitet ↓</option>
               <option value="worked_asc">Gearbeitet ↑</option>
             </select>
           </div>
-
-          <div class="row" id="chipRow" style="margin: 0 0 10px; gap:8px; flex-wrap:wrap;">
+          <div class="row mt-chips" id="chipRow">
             <button class="chip" data-chip="trip">✈️ Dienstreise</button>
             <button class="chip" data-chip="vac">🏖️ Urlaub</button>
             <button class="chip" data-chip="comp">🧩 Kompensation</button>
@@ -1132,19 +1171,7 @@
             <button class="chip" data-chip="incomplete">⚠️ Unvollständig</button>
             <button class="chip chip-clear" id="chipClear">🧹 Filter löschen</button>
           </div>
-
-          <div class="small" style="margin: 6px 0 10px;">Klick auf einen Tag in der Liste zum Bearbeiten.</div>
-          <div id="daysList" class="dayslist" style="max-height:420px; overflow:auto;"></div>
         </div>
-      </div>
-    </section>
-
-    <section class="panel" id="tab-monthtable">
-      <div class="card">
-        <h2>Monatstabelle</h2>
-        <div class="small" style="margin-bottom:6px;">Jahr und Monat wählen. Klick auf eine Zeile öffnet den Tag zum Bearbeiten.</div>
-        <div class="sheets" id="mtYearSheets"></div>
-        <div class="sheets" id="mtMonthSheets"></div>
         <div class="mt-wrap">
           <table class="mt-table">
             <thead>
@@ -1991,18 +2018,21 @@ function niceHourStepMinutes(spanMinutes, ticks){
   return best * 60;
 }
 
-const dayFilters = { search: "", sort: "date_desc", chips: new Set() };
+// Filter der Monatstabelle (Suche, Sortierung, Chips)
+const dayFilters = { search: "", sort: "date_asc", chips: new Set() };
+// Die Tagesliste im Tab "Arbeitszeiten" bleibt ungefiltert (neueste zuerst)
+const LIST_FILTERS = { search: "", sort: "date_desc", chips: new Set() };
 
-function applyFiltersAndSort(dates){
+function applyFiltersAndSort(dates, f = dayFilters){
   let out = dates.slice();
-  const q = dayFilters.search.trim().toLowerCase();
+  const q = f.search.trim().toLowerCase();
   if(q){
     out = out.filter(d=>{
       return d.includes(q) || (state.days[d]?.note || "").toLowerCase().includes(q);
     });
   }
 
-  const chips = dayFilters.chips;
+  const chips = f.chips;
   if(chips.size){
     out = out.filter(d=>{
       const day = state.days[d];
@@ -2031,7 +2061,7 @@ function applyFiltersAndSort(dates){
   function keyWorked(d){ return calcDayDelta(state.days[d], getSettingsForYear(getYearFromISO(d))).worked; }
   function keyDelta(d){ return calcDayDelta(state.days[d], getSettingsForYear(getYearFromISO(d))).delta; }
 
-  switch(dayFilters.sort){
+  switch(f.sort){
     case "date_asc": out.sort((a,b)=> a.localeCompare(b)); break;
     case "date_desc": out.sort((a,b)=> b.localeCompare(a)); break;
     case "worked_asc": out.sort((a,b)=> keyWorked(a)-keyWorked(b)); break;
@@ -2042,10 +2072,17 @@ function applyFiltersAndSort(dates){
   return out;
 }
 
+function resetDayFilters(){
+  dayFilters.search = ""; dayFilters.sort = "date_asc"; dayFilters.chips.clear();
+  if($("daySearch")) $("daySearch").value = "";
+  if($("daySort")) $("daySort").value = "date_asc";
+  document.querySelectorAll("#chipRow .chip").forEach(b=>b.classList.remove("active"));
+}
+
 function setupListControls(){
   const s = $("daySearch"); const so = $("daySort"); const clear = $("chipClear");
-  if(s) s.addEventListener("input", ()=>{ dayFilters.search = s.value; renderDaysTable(); });
-  if(so) so.addEventListener("change", ()=>{ dayFilters.sort = so.value; renderDaysTable(); });
+  if(s) s.addEventListener("input", ()=>{ dayFilters.search = s.value; renderMonthTable(); });
+  if(so) so.addEventListener("change", ()=>{ dayFilters.sort = so.value; renderMonthTable(); });
 
   document.querySelectorAll("#chipRow .chip[data-chip]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
@@ -2063,18 +2100,12 @@ function setupListControls(){
         if(wasActive){ dayFilters.chips.delete(c); btn.classList.remove("active"); }
         else { dayFilters.chips.add(c); btn.classList.add("active"); }
       }
-      renderDaysTable();
+      renderMonthTable();
     });
   });
 
   if(clear){
-    clear.addEventListener("click", ()=>{
-      dayFilters.search = ""; dayFilters.sort = "date_desc"; dayFilters.chips.clear();
-      if($("daySearch")) $("daySearch").value = "";
-      if($("daySort")) $("daySort").value = "date_desc";
-      document.querySelectorAll("#chipRow .chip").forEach(b=>b.classList.remove("active"));
-      renderDaysTable();
-    });
+    clear.addEventListener("click", ()=>{ resetDayFilters(); renderMonthTable(); });
   }
 }
 
@@ -2147,6 +2178,7 @@ function setDeltaEl(el, deltaMin){
 function getYearFromISO(dateISO){ return Number(String(dateISO).slice(0,4)); }
 function getMonthFromISO(dateISO){ return Number(String(dateISO).slice(5,7)); }
 const MONTH_NAMES = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
+const MONTH_LONG = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
 
 function getSettingsForYear(year){
   return state.yearSettings?.[String(year)] ?? { regular: "08:24", vorhol: "00:00", carry: "00:00", urlaub: 0, vorholtage: 0 };
@@ -2291,35 +2323,6 @@ function availableYears(){
   return Array.from(ys).sort((a,b)=>b-a);
 }
 
-function renderSheets(){
-  const yWrap = $("yearSheets"); const mWrap = $("monthSheets");
-  const years = availableYears();
-
-  if(years.length === 0){ yWrap.innerHTML = `<span class="small">Noch keine Einträge.</span>`; mWrap.innerHTML = ""; return; }
-  if(!years.includes(state.ui.selectedYear)) state.ui.selectedYear = years[0];
-  if(!(state.ui.selectedMonth >= 1 && state.ui.selectedMonth <= 12)) state.ui.selectedMonth = 1;
-
-  yWrap.innerHTML = "";
-  years.forEach(y=>{
-    const b = document.createElement("button"); b.className = "sheetbtn" + (y === state.ui.selectedYear ? " active" : "");
-    b.textContent = String(y); b.addEventListener("click", ()=>{ state.ui.selectedYear = y; saveState(state); refreshAll(); });
-    yWrap.appendChild(b);
-  });
-
-  mWrap.innerHTML = "";
-  for(let m=1; m<=12; m++){
-    const b = document.createElement("button"); b.className = "sheetbtn" + (m === state.ui.selectedMonth ? " active" : "");
-    b.textContent = MONTH_NAMES[m-1];
-    b.addEventListener("click", ()=>{
-      state.ui.selectedMonth = m;
-      const newDate = `${state.ui.selectedYear}-${String(m).padStart(2, '0')}-01`;
-      if($("work_date")) $("work_date").value = newDate;
-      saveState(state); refreshAll();
-    });
-    mWrap.appendChild(b);
-  }
-}
-
 function renderOverview(){
   const s = getSettingsForYear(state.ui.selectedYear);
   if($("set_regular"))    $("set_regular").value    = s.regular ?? "08:24";
@@ -2372,9 +2375,11 @@ function passesSheetFilter(dateISO){ return getYearFromISO(dateISO) === state.ui
 function renderDaysTable(){
   const list = $("daysList"); if(!list) return;
   list.innerHTML = "";
-  let dates = applyFiltersAndSort(Object.keys(state.days).filter(passesSheetFilter));
+  const ttl = $("daysListTitle");
+  if(ttl && state.ui.selectedMonth) ttl.textContent = `Tage im ${MONTH_LONG[state.ui.selectedMonth - 1]} ${state.ui.selectedYear}`;
+  let dates = applyFiltersAndSort(Object.keys(state.days).filter(passesSheetFilter), LIST_FILTERS);
 
-  if(dates.length === 0){ list.innerHTML = `<div class="small">Keine Einträge (oder Filter zu streng).</div>`; return; }
+  if(dates.length === 0){ list.innerHTML = `<div class="small">Keine Einträge in diesem Monat.</div>`; return; }
 
   const orderedWeekKeys = []; const groups = new Map();
   for(const d of dates){
@@ -2607,47 +2612,50 @@ function liveCalc(){
 }
 
 /* ===== Monatstabelle ===== */
-let mtYear = null, mtMonth = null;
-
 function renderMonthTable(){
   const body = $("mtBody"); const foot = $("mtFoot");
   if(!body || !foot) return;
-  if(mtYear == null) mtYear = state.ui.selectedYear;
-  if(mtMonth == null) mtMonth = state.ui.selectedMonth;
 
+  // Gemeinsame Auswahl (Jahr/Monat): gilt auch für die Tagesliste im Tab "Arbeitszeiten"
+  if(!(state.ui.selectedYear > 0)) state.ui.selectedYear = getYearFromISO(todayISO());
+  if(!(state.ui.selectedMonth >= 1 && state.ui.selectedMonth <= 12)) state.ui.selectedMonth = getMonthFromISO(todayISO());
+  const selYear = state.ui.selectedYear, selMonth = state.ui.selectedMonth;
   const allDates = Object.keys(state.days);
 
   // Jahr-Buttons (vorhandene Jahre + aktuell gewähltes)
-  const years = Array.from(new Set([...availableYears(), mtYear])).sort((a,b)=>b-a);
+  const years = Array.from(new Set([...availableYears(), selYear])).sort((a,b)=>b-a);
   const yWrap = $("mtYearSheets"); yWrap.innerHTML = "";
   years.forEach(y=>{
     const b = document.createElement("button");
-    b.className = "sheetbtn" + (y === mtYear ? " active" : "");
+    b.className = "sheetbtn" + (y === selYear ? " active" : "");
     b.textContent = String(y);
-    b.addEventListener("click", ()=>{ mtYear = y; renderMonthTable(); });
+    b.addEventListener("click", ()=>{ state.ui.selectedYear = y; saveState(state); refreshAll(); });
     yWrap.appendChild(b);
   });
 
   // Monat-Buttons (Monate ohne Einträge sind abgedunkelt)
-  const monthsWithData = new Set(allDates.filter(d=>getYearFromISO(d)===mtYear).map(getMonthFromISO));
+  const monthsWithData = new Set(allDates.filter(d=>getYearFromISO(d)===selYear).map(getMonthFromISO));
   const mWrap = $("mtMonthSheets"); mWrap.innerHTML = "";
   for(let m=1; m<=12; m++){
     const b = document.createElement("button");
-    b.className = "sheetbtn" + (m === mtMonth ? " active" : "") + (monthsWithData.has(m) ? "" : " mt-empty");
+    b.className = "sheetbtn" + (m === selMonth ? " active" : "") + (monthsWithData.has(m) ? "" : " mt-empty");
     b.textContent = MONTH_NAMES[m-1];
-    b.addEventListener("click", ()=>{ mtMonth = m; renderMonthTable(); });
+    b.addEventListener("click", ()=>{ state.ui.selectedMonth = m; saveState(state); refreshAll(); });
     mWrap.appendChild(b);
   }
 
-  // Zeilen
-  const dates = allDates.filter(d=>getYearFromISO(d)===mtYear && getMonthFromISO(d)===mtMonth).sort();
+  // Zeilen (Suche, Chips und Sortierung aus der Filterleiste)
+  const inMonth = allDates.filter(d=>getYearFromISO(d)===selYear && getMonthFromISO(d)===selMonth);
+  const dates = applyFiltersAndSort(inMonth);
+  const filtered = !!(dayFilters.search.trim() || dayFilters.chips.size);
   body.innerHTML = ""; foot.innerHTML = "";
   if(!dates.length){
-    body.innerHTML = `<tr><td colspan="11" class="small" style="cursor:default;">Keine Einträge in diesem Monat.</td></tr>`;
+    const msg = inMonth.length ? "Keine Einträge für diese Filter." : "Keine Einträge in diesem Monat.";
+    body.innerHTML = `<tr><td colspan="11" class="small" style="cursor:default;">${msg}</td></tr>`;
     return;
   }
 
-  const settings = getSettingsForYear(mtYear);
+  const settings = getSettingsForYear(selYear);
   const WD = ["So","Mo","Di","Mi","Do","Fr","Sa"];
   let sumWorked = 0, sumDelta = 0;
 
@@ -2658,9 +2666,11 @@ function renderMonthTable(){
     return (st != null && en != null && en >= st) ? fmtMinutes(en - st) : "–";
   };
 
-  // Nach Kalenderwochen gruppieren (dates ist bereits aufsteigend sortiert)
+  // Nach Kalenderwochen gruppieren (Reihenfolge wie sortiert). Bei Sortierung nach Δ/Arbeitszeit: flache Liste ohne Wochen.
+  const flat = !/^date_/.test(dayFilters.sort);
   const weeks = []; const weekMap = new Map();
-  for(const iso of dates){
+  if(flat) weeks.push({ week: null, days: dates });
+  else for(const iso of dates){
     const w = isoWeek(iso); const key = `${w.year}-${w.week}`;
     if(!weekMap.has(key)){ const g = { week: w.week, days: [] }; weekMap.set(key, g); weeks.push(g); }
     weekMap.get(key).days.push(iso);
@@ -2722,21 +2732,23 @@ function renderMonthTable(){
     sumWorked += wWorked; sumDelta += wDelta;
 
     // Wochen-Kopfzeile mit Wochensumme
-    const wk = weekDatesFromISO(g.days[0]);
-    const spansMonths = getMonthFromISO(wk[0]) !== getMonthFromISO(wk[6]);
-    const head = document.createElement("tr"); head.className = "mt-week";
-    const lbl = document.createElement("td"); lbl.colSpan = 8;
-    lbl.innerHTML = `KW ${g.week}<span class="mt-weekrange">${fmtShort(wk[0])} – ${fmtShort(wk[6])}${spansMonths ? " · Teilwoche" : ""}</span>`;
-    head.appendChild(lbl);
-    head.appendChild(mkTd(fmtMinutes(wWorked), "num"));
-    head.appendChild(mkTd(fmtSignedMinutesHHMM(wDelta), "num " + (wDelta > 0 ? "mt-ok" : wDelta < 0 ? "mt-bad" : "")));
-    head.appendChild(mkTd(""));
-    body.appendChild(head);
+    if(!flat){
+      const wk = weekDatesFromISO(g.days[0]);
+      const spansMonths = getMonthFromISO(wk[0]) !== getMonthFromISO(wk[6]);
+      const head = document.createElement("tr"); head.className = "mt-week";
+      const lbl = document.createElement("td"); lbl.colSpan = 8;
+      lbl.innerHTML = `KW ${g.week}<span class="mt-weekrange">${fmtShort(wk[0])} – ${fmtShort(wk[6])}${spansMonths ? " · Teilwoche" : ""}</span>`;
+      head.appendChild(lbl);
+      head.appendChild(mkTd(fmtMinutes(wWorked), "num"));
+      head.appendChild(mkTd(fmtSignedMinutesHHMM(wDelta), "num " + (wDelta > 0 ? "mt-ok" : wDelta < 0 ? "mt-bad" : "")));
+      head.appendChild(mkTd(""));
+      body.appendChild(head);
+    }
     rows.forEach(r => body.appendChild(r));
   }
 
   const ftr = document.createElement("tr");
-  const lbl = mkTd(`Summe · ${dates.length} ${dates.length === 1 ? "Tag" : "Tage"}`); lbl.colSpan = 8;
+  const lbl = mkTd(`Summe · ${dates.length} ${dates.length === 1 ? "Tag" : "Tage"}${filtered ? " (gefiltert)" : ""}`); lbl.colSpan = 8;
   ftr.appendChild(lbl);
   ftr.appendChild(mkTd(fmtMinutes(sumWorked), "num"));
   ftr.appendChild(mkTd(fmtSignedMinutesHHMM(sumDelta), "num " + (sumDelta > 0 ? "mt-ok" : sumDelta < 0 ? "mt-bad" : "")));
@@ -2745,7 +2757,7 @@ function renderMonthTable(){
 }
 
 function refreshAll(){
-  renderOverview(); renderTimesKPIs(); renderSheets(); renderDaysTable(); liveCalc(); renderStats(); renderMonthCalendar(); validateDayInputs(); renderMonthSummary(); renderMonthCheck(); renderMonthTable();
+  renderOverview(); renderTimesKPIs(); renderDaysTable(); liveCalc(); renderStats(); renderMonthCalendar(); validateDayInputs(); renderMonthSummary(); renderMonthCheck(); renderMonthTable();
 }
 
 document.querySelectorAll(".tabbtn").forEach(btn=>{
@@ -2878,7 +2890,7 @@ document.addEventListener("keydown", (e) => {
       $("trip_check").checked = false; $("vac_check").checked = false; $("comp_check").checked = false; $("pre_check").checked = false;
       state.ui.selectedYear = getYearFromISO(next); state.ui.selectedMonth = getMonthFromISO(next); saveState(state); saveDraft(); liveCalc();
     }
-    renderSheets();
+    renderMonthTable(); renderDaysTable();
   }
 });
 
@@ -3373,7 +3385,7 @@ $("btnResetAll").addEventListener("click", ()=>{
   localStorage.clear(); state = defaultState();
   state.ui.selectedYear = null; state.ui.selectedMonth = null; saveState(state);
   clearDraft(); $("work_date").value = todayISO(); if($("backupIn")) $("backupIn").value = "";
-  dayFilters.search = ""; dayFilters.sort = "date_desc"; dayFilters.chips.clear();
+  resetDayFilters();
   refreshAll(); clearForm();
 });
 
