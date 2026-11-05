@@ -802,7 +802,14 @@
     .sheetbtn.mt-empty{ opacity:0.45; }
     .card .mt-table td.tm{ text-align:left; font-variant-numeric:tabular-nums; }
     .card .mt-table td.tm.mt-dur{ color:var(--muted); }
-    .card .mt-table td.mt-note{ text-align:left; }
+    .card .mt-table td.mt-note{ text-align:left; white-space:normal; overflow:visible; text-overflow:clip; overflow-wrap:anywhere; min-width:120px; }
+    .card .mt-table th, .card .mt-table td{ padding-left:6px; padding-right:6px; }
+    /* ===== Dienstreise-Felder im Formular ===== */
+    .trip-box{ margin: 8px 0 10px; padding: 10px 12px 12px; border: 1px solid rgba(255,210,90,.45); border-radius: 12px; background: rgba(255,210,90,.06); }
+    .trip-title{ font-weight: 800; font-size: 13px; margin-bottom: 8px; }
+    .trip-title .small{ font-weight: 400; }
+    .mt-table tr.mt-hastrip td{ border-bottom: none; }
+    .mt-table tr.mt-triprow td{ color: var(--muted); font-size: 12.5px; background: rgba(255,210,90,0.05); }
     .mt-table tr.mt-week td{ background:rgba(255,99,49,0.12); font-weight:800; border-top:1px solid rgba(255,99,49,0.35); cursor:default; }
     .mt-table tr.mt-week td .mt-weekrange{ font-weight:500; color:var(--muted); margin-left:8px; }
     .mt-table tr.mt-week:hover td{ background:rgba(255,99,49,0.12); }
@@ -932,12 +939,45 @@
               <label title="Kennzeichnet den Tag als Dienstreise.">
                 <input id="trip_check" type="checkbox" /> ✈️ Dienstreise
               </label>
-              <div class="grid" style="margin-top: 6px;">
-                <div style="grid-column: span 4;">
-                  <label for="trip_hours" title="Optional: Dauer der Dienstreise (hh:mm).">Dienstreise-Dauer</label>
-                  <input id="trip_hours" placeholder="z.B. 03:00" inputmode="numeric" />
+              <div id="tripFields" class="trip-box" style="display:none;">
+                <div class="trip-title">✈️ Dienstreise-Zeiten <span class="small">· zählen zusammen mit den Büro-Zeiten</span></div>
+                <div class="grid">
+                  <div style="grid-column: span 4;">
+                    <label for="tr_out" title="Reisezeit hin. Dauer im Format hh:mm. '..' wird zu ':'">Reisezeit Hin</label>
+                    <input id="tr_out" placeholder="01:00" inputmode="numeric" />
+                  </div>
+                  <div style="grid-column: span 4;">
+                    <label for="tr_start1" title="Uhrzeit im Format hh:mm. '..' wird zu ':'">Start 1</label>
+                    <input id="tr_start1" placeholder="09:00" inputmode="numeric" />
+                  </div>
+                  <div style="grid-column: span 4;">
+                    <label for="tr_end1" title="Uhrzeit im Format hh:mm. '..' wird zu ':'">Ende 1</label>
+                    <input id="tr_end1" placeholder="12:00" inputmode="numeric" />
+                  </div>
+                  <div style="grid-column: span 4;">
+                    <label for="tr_start2" title="Uhrzeit im Format hh:mm. '..' wird zu ':'">Start 2</label>
+                    <input id="tr_start2" placeholder="13:00" inputmode="numeric" />
+                  </div>
+                  <div style="grid-column: span 4;">
+                    <label for="tr_end2" title="Uhrzeit im Format hh:mm. '..' wird zu ':'">Ende 2</label>
+                    <input id="tr_end2" placeholder="17:00" inputmode="numeric" />
+                  </div>
+                  <div style="grid-column: span 4;">
+                    <label for="tr_break" title="Pause während der Dienstreise (Dauer hh:mm). '..' wird zu ':'">Pause</label>
+                    <input id="tr_break" placeholder="00:30" inputmode="numeric" />
+                  </div>
+                  <div style="grid-column: span 4;">
+                    <label for="tr_back" title="Reisezeit zurück. Dauer im Format hh:mm. '..' wird zu ':'">Reisezeit zurück</label>
+                    <input id="tr_back" placeholder="01:00" inputmode="numeric" />
+                  </div>
+                  <div style="grid-column: span 8; align-self:end;">
+                    <div class="small" id="tripSum">Dienstreise gesamt: –</div>
+                    <div class="small" id="tripLegacyNote" style="display:none;"></div>
+                  </div>
                 </div>
-                <div style="grid-column: span 8;">
+              </div>
+              <div class="grid" style="margin-top: 6px;">
+                <div style="grid-column: span 12;">
                   <label for="work_note" title="Freitext-Notiz zum Tag.">Notiz</label>
                   <input id="work_note" placeholder="z.B. Kunde XY / Projekt…" />
                 </div>
@@ -1496,7 +1536,8 @@ function renderMonthCheck(){
     const s1 = day.start1 || ""; const e1 = day.end1 || "";
     const s2 = day.start2 || ""; const e2 = day.end2 || "";
 
-    if((s1 && !e1) || (!s1 && e1) || (s2 && !e2) || (!s2 && e2)) incompleteDays++;
+    if((s1 && !e1) || (!s1 && e1) || (s2 && !e2) || (!s2 && e2)
+       || (day.trip && ((day.tripS1 && !day.tripE1) || (!day.tripS1 && day.tripE1) || (day.tripS2 && !day.tripE2) || (!day.tripS2 && day.tripE2)))) incompleteDays++;
 
     let worked = 0;
     if(typeof calcWorkedMinutes === "function") worked = calcWorkedMinutes(day,0) || 0;
@@ -1614,10 +1655,21 @@ function validateDayInputs(){
 
   let worked = 0;
   if(typeof calcWorkedMinutes === "function"){
-    const dayTmp = { start1: s1, end1: e1, start2: s2, end2: e2, pause };
-    worked = calcWorkedMinutes(dayTmp, 0) || 0;
+    worked = calcWorkedMinutes(readFormDay(), 0) || 0;
   }
   if(worked > 720) warnings.push("Arbeitszeit ungewöhnlich hoch (>12h)");
+
+  if(chk("trip_check")){
+    const t1 = val("tr_start1"), te1 = val("tr_end1"), t2 = val("tr_start2"), te2 = val("tr_end2");
+    if((t1 && !te1) || (!t1 && te1)) warnings.push("Dienstreise: Start 1 und Ende 1 gehören zusammen");
+    if((t2 && !te2) || (!t2 && te2)) warnings.push("Dienstreise: Start 2 und Ende 2 gehören zusammen");
+    // Überschneidung Büro-/Reisezeiten würde doppelt zählen
+    const iv = [[s1,e1,"Büro"],[s2,e2,"Büro"],[t1,te1,"Reise"],[t2,te2,"Reise"]]
+      .map(([a,b,k]) => [parseDurationHHMM(a), parseDurationHHMM(b), k]).filter(x => x[0] != null && x[1] != null && x[1] > x[0]);
+    outer: for(let i=0;i<iv.length;i++) for(let j=i+1;j<iv.length;j++){
+      if(iv[i][2] !== iv[j][2] && iv[i][0] < iv[j][1] && iv[j][0] < iv[i][1]){ warnings.push("Büro- und Reisezeiten überschneiden sich (zählt doppelt)"); break outer; }
+    }
+  }
   if((vac || comp || pre) && (s1 || e1 || s2 || e2)) warnings.push("Zeiten gesetzt obwohl Urlaub/Komp/Vorhol active");
 
   renderWarnings(warnings);
@@ -2123,7 +2175,7 @@ function loadState(){
 }
 function saveState(state){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 
-const DRAFT_FIELDS = ["t_start1","t_end1","t_start2","t_end2","t_break","trip_check","trip_hours","work_note","vac_check","comp_check","pre_check","set_regular","set_vorhol","set_carry","set_urlaub","set_vorholtage","backupIn"];
+const DRAFT_FIELDS = ["t_start1","t_end1","t_start2","t_end2","t_break","trip_check","tr_out","tr_start1","tr_end1","tr_start2","tr_end2","tr_break","tr_back","work_note","vac_check","comp_check","pre_check","set_regular","set_vorhol","set_carry","set_urlaub","set_vorholtage","backupIn"];
 
 function saveDraft(){
   const draft = {};
@@ -2144,8 +2196,9 @@ function loadDraft(){
 }
 function clearDraft(){ localStorage.removeItem(DRAFT_KEY); }
 
-const CLOCK_FIELDS = ["t_start1","t_end1","t_start2","t_end2"];
-const DURATION_FIELDS = ["t_break","trip_hours","set_regular","set_vorhol","set_carry"];
+const CLOCK_FIELDS = ["t_start1","t_end1","t_start2","t_end2","tr_start1","tr_end1","tr_start2","tr_end2"];
+const TRIP_FIELDS = ["tr_out","tr_start1","tr_end1","tr_start2","tr_end2","tr_break","tr_back"];
+const DURATION_FIELDS = ["t_break","tr_out","tr_break","tr_back","set_regular","set_vorhol","set_carry"];
 function markValidity(id, ok){ const el = $(id); if(el) el.classList.toggle("invalid", !ok); }
 
 function validateTimeField(id){
@@ -2160,11 +2213,32 @@ function validateAllTimeFields(){
   return ok;
 }
 
+const TRIP_DAY_KEYS = ["tripOut","tripS1","tripE1","tripS2","tripE2","tripBreak","tripBack"];
+function hasTripDetails(day){ return TRIP_DAY_KEYS.some(k => String(day[k] || "").trim().length > 0); }
+
+// Dienstreise-Minuten: Hin + (Ende1-Start1) + (Ende2-Start2) - Pause + Zurück
+function calcTripMinutes(day){
+  if(!day.trip) return 0;
+  const dur = v => parseDurationHHMM(String(v || "").trim()) ?? 0;
+  const span = (a, b) => {
+    const st = parseDurationHHMM(String(a || "").trim()), en = parseDurationHHMM(String(b || "").trim());
+    return (st != null && en != null) ? Math.max(0, en - st) : null;
+  };
+  const blocks = [span(day.tripS1, day.tripE1), span(day.tripS2, day.tripE2)].filter(x => x != null);
+  const work = blocks.length ? Math.max(0, blocks.reduce((a, b) => a + b, 0) - dur(day.tripBreak)) : 0;
+  return dur(day.tripOut) + work + dur(day.tripBack);
+}
+
 function calcWorkedMinutes(day, targetMin){
   if(day.comp) return 0;
-  if(day.trip && (day.tripHours || "").trim().length){
+  // Altdaten: die frühere "Dienstreise-Dauer" ersetzt die Büro-Zeiten, solange keine neuen Reisefelder genutzt werden
+  if(day.trip && (day.tripHours || "").trim().length && !hasTripDetails(day)){
     const tripMin = parseDurationHHMM(day.tripHours.trim()); if(tripMin != null) return tripMin;
   }
+  return calcOfficeMinutes(day) + calcTripMinutes(day);
+}
+
+function calcOfficeMinutes(day){
   const s1 = parseDurationHHMM(day.start1 || ""); const e1 = parseDurationHHMM(day.end1 || "");
   const s2 = parseDurationHHMM(day.start2 || ""); const e2 = parseDurationHHMM(day.end2 || "");
   const br = parseDurationHHMM(day.break || "") ?? 0;
@@ -2444,7 +2518,7 @@ function renderDaysTable(){
 
       const det = document.createElement("div"); det.className = "daydetail"; det.dataset.week = wkKey; det.style.display = "none";
       det.style.padding = "6px 12px"; det.style.fontSize = "12px"; det.style.opacity = "0.7";
-      det.textContent = `Zeiten: ${day.start1||"–"} → ${day.end1||"–"} · ${day.start2||"–"} → ${day.end2||"–"} · Pause: ${day.break||"–"}${day.trip && day.tripHours ? ` · ✈️ Dauer: ${day.tripHours}` : ""}`;
+      det.textContent = `Zeiten: ${day.start1||"–"} → ${day.end1||"–"} · ${day.start2||"–"} → ${day.end2||"–"} · Pause: ${day.break||"–"}${day.trip && tripSummary(day) ? ` · ✈️ ${tripSummary(day)}` : ""}`;
 
       btnDetails.addEventListener("click", (e)=>{ e.stopPropagation(); det.style.display = (det.style.display === "none") ? "" : "none"; });
 
@@ -2458,16 +2532,45 @@ function readFormDay(){
   const day = {
     start1: $("t_start1").value.trim(), end1: $("t_end1").value.trim(),
     start2: $("t_start2").value.trim(), end2: $("t_end2").value.trim(),
-    break: $("t_break").value.trim(), trip: $("trip_check").checked, tripHours: $("trip_hours").value.trim(),
+    break: $("t_break").value.trim(), trip: $("trip_check").checked,
+    tripOut: $("tr_out").value.trim(), tripS1: $("tr_start1").value.trim(), tripE1: $("tr_end1").value.trim(),
+    tripS2: $("tr_start2").value.trim(), tripE2: $("tr_end2").value.trim(), tripBreak: $("tr_break").value.trim(), tripBack: $("tr_back").value.trim(),
+    tripHours: "",
     vacation: $("vac_check").checked, comp: $("comp_check").checked, pre: $("pre_check").checked, note: $("work_note").value.trim()
   };
+  if(!day.trip) TRIP_DAY_KEYS.forEach(k => day[k] = "");
+  // Altwert (frühere Dienstreise-Dauer) bleibt erhalten, solange der Tag nicht mit den neuen Reisefeldern bearbeitet wird
+  if(day.trip && !hasTripDetails(day) && legacyTrip.hours && legacyTrip.date === ($("work_date").value || "")) day.tripHours = legacyTrip.hours;
   if((day.vacation || day.comp || day.pre) && !(day.start1 || day.end1 || day.start2 || day.end2)){
     day.start1 = ""; day.end1 = ""; day.start2 = ""; day.end2 = ""; day.break = ""; day.trip = false; day.tripHours = "";
+    TRIP_DAY_KEYS.forEach(k => day[k] = "");
   }
   return day;
 }
 
+function tripSummary(day){
+  if(!hasTripDetails(day)) return day.tripHours ? `Dauer: ${day.tripHours}` : "";
+  const parts = [];
+  if(day.tripOut) parts.push(`Hin ${day.tripOut}`);
+  if(day.tripS1 || day.tripE1) parts.push(`${day.tripS1 || "–"} → ${day.tripE1 || "–"}`);
+  if(day.tripS2 || day.tripE2) parts.push(`${day.tripS2 || "–"} → ${day.tripE2 || "–"}`);
+  if(day.tripBreak) parts.push(`Pause ${day.tripBreak}`);
+  if(day.tripBack) parts.push(`Zurück ${day.tripBack}`);
+  return `${parts.join(" · ")} = ${fmtMinutes(calcTripMinutes(day))}`;
+}
+
+// Merkt sich die alte "Dienstreise-Dauer" eines geladenen Tages (nur gültig für genau dieses Datum)
+let legacyTrip = { date: "", hours: "" };
+
+// Dienstreise-Felder nur zeigen, wenn "Dienstreise" gewählt ist; sonst ausblenden und leeren
+function updateTripFields(){
+  const on = !!$("trip_check")?.checked;
+  const box = $("tripFields"); if(box) box.style.display = on ? "" : "none";
+  if(!on) TRIP_FIELDS.forEach(id => { const el = $(id); if(el && el.value){ el.value = ""; } if(el) el.classList.remove("invalid"); });
+}
+
 function liveCalc(){
+  updateTripFields();
   if(typeof validateAllTimeFields === "function") validateAllTimeFields();
   const day = readFormDay(); const date = $("work_date").value || todayISO();
   const { worked, delta } = calcDayDelta(day, getSettingsForYear(getYearFromISO(date)));
@@ -2490,10 +2593,17 @@ function liveCalc(){
   if(document.querySelector("input.invalid")) hint = "Ungültige Zeit(en) – bitte korrigieren (rote Felder).";
   else if(markers.holidayName) hint = `Hinweis: Feiertag (${markers.holidayName}) – Buchung möglich.`;
   else if(markers.weekend) hint = "Hinweis: Wochenende – Buchung möglich.";
-  else if(day.trip) hint = day.tripHours.length ? "✈️ Dienstreise: Es zählt die angegebene Dauer." : "✈️ Dienstreise: Es zählen die effektiven Zeiten.";
+  else if(day.trip) hint = day.tripHours.length ? "✈️ Dienstreise: Es zählt die gespeicherte (alte) Dauer." : `✈️ Dienstreise: Büro ${fmtMinutes(calcOfficeMinutes(day))} + Reise ${fmtMinutes(calcTripMinutes(day))} zählen zusammen.`;
   else if(day.comp) hint = "🧩 Kompensation: Sollzeit wird vom Überstunden-Saldo abgezogen.";
 
   $("calcHint").textContent = hint;
+
+  const sumEl = $("tripSum"); if(sumEl) sumEl.textContent = "Dienstreise gesamt: " + (day.trip ? fmtMinutes(calcTripMinutes(day)) : "–");
+  const legEl = $("tripLegacyNote");
+  if(legEl){
+    if(day.tripHours){ legEl.style.display = ""; legEl.textContent = `ℹ️ Gespeicherte Dienstreise-Dauer (alt): ${day.tripHours} – gilt, bis du hier Reisezeiten einträgst.`; }
+    else legEl.style.display = "none";
+  }
 }
 
 /* ===== Monatstabelle ===== */
@@ -2586,6 +2696,28 @@ function renderMonthTable(){
 
       tr.addEventListener("click", ()=>loadDayIntoForm(iso));
       rows.push(tr);
+
+      // Zweite Zeile mit den Dienstreise-Zeiten
+      if(day.trip && (hasTripDetails(day) || day.tripHours)){
+        tr.classList.add("mt-hastrip");
+        const legacyOnly = !hasTripDetails(day);
+        const tmin = legacyOnly ? (parseDurationHHMM(day.tripHours) ?? 0) : calcTripMinutes(day);
+        const tt = document.createElement("tr"); tt.className = "mt-triprow"; tt.title = "Klicken zum Bearbeiten";
+        tt.appendChild(mkTd("✈️ Reise"));
+        tt.appendChild(mkTd(day.tripS1 || "–", "tm"));
+        tt.appendChild(mkTd(day.tripE1 || "–", "tm"));
+        tt.appendChild(mkTd(spanText(day.tripS1, day.tripE1), "tm mt-dur"));
+        tt.appendChild(mkTd(day.tripS2 || "–", "tm"));
+        tt.appendChild(mkTd(day.tripE2 || "–", "tm"));
+        tt.appendChild(mkTd(spanText(day.tripS2, day.tripE2), "tm mt-dur"));
+        tt.appendChild(mkTd(day.tripBreak || "–", "tm"));
+        tt.appendChild(mkTd(fmtMinutes(tmin), "num"));
+        tt.appendChild(mkTd(""));
+        const tinfo = legacyOnly ? "Dauer (alt)" : [day.tripOut ? `Hin ${day.tripOut}` : "", day.tripBack ? `Zurück ${day.tripBack}` : ""].filter(Boolean).join(" · ");
+        tt.appendChild(mkTd(tinfo, "mt-note"));
+        tt.addEventListener("click", ()=>loadDayIntoForm(iso));
+        rows.push(tt);
+      }
     }
     sumWorked += wWorked; sumDelta += wDelta;
 
@@ -2654,7 +2786,9 @@ function validateDay(day){
   if([day.vacation, day.comp, day.pre].filter(Boolean).length > 1) errors.push("Bitte nur ein Spezial-Flag wählen.");
   if(day.vacation || day.comp || day.pre) return errors;
 
-  const checks = [["Morgen Start","t_start1",day.start1,"clock"],["Morgen Ende","t_end1",day.end1,"clock"],["Mittag Start","t_start2",day.start2,"clock"],["Mittag Ende","t_end2",day.end2,"clock"],["Pause","t_break",day.break,"duration"],["Dienstreise","trip_hours",day.tripHours,"duration"]];
+  const checks = [["Morgen Start","t_start1",day.start1,"clock"],["Morgen Ende","t_end1",day.end1,"clock"],["Mittag Start","t_start2",day.start2,"clock"],["Mittag Ende","t_end2",day.end2,"clock"],["Pause","t_break",day.break,"duration"],
+    ["Reisezeit Hin","tr_out",day.tripOut,"duration"],["Reise Start 1","tr_start1",day.tripS1,"clock"],["Reise Ende 1","tr_end1",day.tripE1,"clock"],
+    ["Reise Start 2","tr_start2",day.tripS2,"clock"],["Reise Ende 2","tr_end2",day.tripE2,"clock"],["Reise Pause","tr_break",day.tripBreak,"duration"],["Reisezeit zurück","tr_back",day.tripBack,"duration"]];
   for(const [name, id, val, kind] of checks){
     if(!val.length) { markValidity(id, true); continue; }
     const isOk = kind === "clock" ? isValidClockHHMM(val) : isValidDurationHHMM(val);
@@ -2705,7 +2839,7 @@ function showYearDialog(newYear, suggestedCarry){
 
 function clearForm(){
   $("work_date").value = todayISO();
-  ["t_start1","t_end1","t_start2","t_end2","t_break","trip_hours","work_note"].forEach(id=>$(id).value="");
+  ["t_start1","t_end1","t_start2","t_end2","t_break",...TRIP_FIELDS,"work_note"].forEach(id=>$(id).value="");
   $("trip_check").checked = false; $("vac_check").checked = false; $("comp_check").checked = false; $("pre_check").checked = false;
   saveDraft(); liveCalc();
 }
@@ -2717,7 +2851,9 @@ function copyPrevDayIntoForm(){
   if(!src){ alert("Kein Vortrag vorhanden."); return; }
   $("t_start1").value = src.start1 || ""; $("t_end1").value = src.end1 || "";
   $("t_start2").value = src.start2 || ""; $("t_end2").value = src.end2 || "";
-  $("t_break").value = src.break || ""; $("trip_check").checked = !!src.trip; $("trip_hours").value = src.tripHours || "";
+  $("t_break").value = src.break || ""; $("trip_check").checked = !!src.trip;
+  $("tr_out").value = src.tripOut || ""; $("tr_start1").value = src.tripS1 || ""; $("tr_end1").value = src.tripE1 || "";
+  $("tr_start2").value = src.tripS2 || ""; $("tr_end2").value = src.tripE2 || ""; $("tr_break").value = src.tripBreak || ""; $("tr_back").value = src.tripBack || "";
   $("vac_check").checked = false; $("comp_check").checked = false; $("pre_check").checked = false;
   if(!($("work_note").value || "").trim()) $("work_note").value = src.note || "";
   saveDraft(); liveCalc();
@@ -2738,7 +2874,7 @@ document.addEventListener("keydown", (e) => {
     $("work_date").value = next;
     if(state.days?.[next]) loadDayIntoForm(next);
     else {
-      ["t_start1","t_end1","t_start2","t_end2","t_break","trip_hours","work_note"].forEach(id=>$(id).value="");
+      ["t_start1","t_end1","t_start2","t_end2","t_break",...TRIP_FIELDS,"work_note"].forEach(id=>$(id).value="");
       $("trip_check").checked = false; $("vac_check").checked = false; $("comp_check").checked = false; $("pre_check").checked = false;
       state.ui.selectedYear = getYearFromISO(next); state.ui.selectedMonth = getMonthFromISO(next); saveState(state); saveDraft(); liveCalc();
     }
@@ -2767,8 +2903,8 @@ function loadDayIntoForm(dateIso) {
       vac_check: $("vac_check")?.checked || false,
       comp_check: $("comp_check")?.checked || false,
       pre_check: $("pre_check")?.checked || false,
-      trip_hours: $("trip_hours")?.value || "",
-      day_note: $("day_note")?.value || ""
+      trip_fields: Object.fromEntries(TRIP_FIELDS.map(id => [id, $(id)?.value || ""])),
+      day_note: $("work_note")?.value || ""
     };
   }
 
@@ -2787,8 +2923,10 @@ function loadDayIntoForm(dateIso) {
   if ($("comp_check")) $("comp_check").checked = !!day.comp;
   if ($("pre_check")) $("pre_check").checked = !!day.pre;
 
-  if ($("trip_hours")) $("trip_hours").value = day.tripHours || "";
-  if ($("day_note")) $("day_note").value = day.note || "";
+  $("tr_out").value = day.tripOut || ""; $("tr_start1").value = day.tripS1 || ""; $("tr_end1").value = day.tripE1 || "";
+  $("tr_start2").value = day.tripS2 || ""; $("tr_end2").value = day.tripE2 || ""; $("tr_break").value = day.tripBreak || ""; $("tr_back").value = day.tripBack || "";
+  legacyTrip = { date: dateIso, hours: day.tripHours || "" };
+  if ($("work_note")) $("work_note").value = day.note || "";
 
   // 3. UI anpassen
   if ($("btnSaveDay")) $("btnSaveDay").textContent = "💾 Änderungen speichern";
@@ -2822,8 +2960,8 @@ function resetEditState() {
     if ($("comp_check")) $("comp_check").checked = draftBackup.comp_check;
     if ($("pre_check")) $("pre_check").checked = draftBackup.pre_check;
 
-    if ($("trip_hours")) $("trip_hours").value = draftBackup.trip_hours;
-    if ($("day_note")) $("day_note").value = draftBackup.day_note;
+    TRIP_FIELDS.forEach(id => { if ($(id)) $(id).value = (draftBackup.trip_fields || {})[id] || ""; });
+    if ($("work_note")) $("work_note").value = draftBackup.day_note;
 
     draftBackup = null; // Backup löschen
   } else {
@@ -2831,7 +2969,7 @@ function resetEditState() {
     if (typeof clearForm === "function") {
       clearForm();
     } else {
-      ["t_start1", "t_end1", "t_start2", "t_end2", "t_break", "day_note", "trip_hours"].forEach(id => {
+      ["t_start1", "t_end1", "t_start2", "t_end2", "t_break", "work_note", ...TRIP_FIELDS].forEach(id => {
         if ($(id)) $(id).value = "";
       });
       if ($("trip_check")) $("trip_check").checked = false;
@@ -2893,7 +3031,7 @@ document.addEventListener("keydown", (e) => {
 ["vac_check","comp_check","pre_check","trip_check"].forEach(id=>{
   $(id).addEventListener("change", (e)=>{
     if(["vac_check","comp_check","pre_check"].includes(e.target.id) && e.target.checked){
-      ["t_start1","t_end1","t_start2","t_end2","t_break","trip_hours"].forEach(i=>$(i).value=""); $("trip_check").checked = false;
+      ["t_start1","t_end1","t_start2","t_end2","t_break",...TRIP_FIELDS].forEach(i=>$(i).value=""); $("trip_check").checked = false;
     }
     liveCalc(); saveDraft();
   });
@@ -3267,10 +3405,11 @@ $("btnResetAll").addEventListener("click", ()=>{
   $("btnExportMonthCsv")?.addEventListener("click", exportMonthCsv);
   
   // NEU: Jede manuelle Eingabe sofort im Draft sichern, wenn getippt wird
-  ["t_start1", "t_end1", "t_start2", "t_end2", "t_break", "work_date"].forEach(id => {
+  ["t_start1", "t_end1", "t_start2", "t_end2", "t_break", ...TRIP_FIELDS, "work_date"].forEach(id => {
     $(id)?.addEventListener("input", () => {
       saveDraft();
       liveCalc();
+      if(typeof validateDayInputs === "function") validateDayInputs();
     });
   });
 
@@ -3278,7 +3417,7 @@ $("btnResetAll").addEventListener("click", ()=>{
   let lastFocusedTimeInput = null;
 
   // 1. Sich merken, in welchem Zeitfeld der Cursor zuletzt war
-  ["t_start1", "t_end1", "t_start2", "t_end2", "t_break"].forEach(id => {
+  ["t_start1", "t_end1", "t_start2", "t_end2", "t_break", "tr_start1", "tr_end1", "tr_start2", "tr_end2"].forEach(id => {
     $(id)?.addEventListener("focus", (e) => {
       lastFocusedTimeInput = e.target;
     });
