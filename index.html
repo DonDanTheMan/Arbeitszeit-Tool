@@ -837,6 +837,12 @@
     .mt-table tr.mt-week td{ background:rgba(255,99,49,0.12); font-weight:800; border-top:1px solid rgba(255,99,49,0.35); cursor:default; }
     .mt-table tr.mt-week td .mt-weekrange{ font-weight:500; color:var(--muted); margin-left:8px; }
     .mt-table tr.mt-week:hover td{ background:rgba(255,99,49,0.12); }
+    .mt-table tr.mt-today td{ background: rgba(255,99,49,0.08); }
+    .mt-table tr.mt-today td:first-child{ box-shadow: inset 3px 0 0 var(--accent); }
+    .mt-todaytag{ margin-left:8px; font-size:10.5px; font-weight:700; padding:1px 7px; border-radius:999px; background:rgba(255,99,49,0.28); color:#ffd9cb; }
+    .app-footer{ margin-top:14px; text-align:center; opacity:.7; font-size:12px; }
+    #lastBackupInfo{ margin-right:6px; white-space:nowrap; }
+    #kpiEndNote{ margin-left:6px; font-weight:400; }
 </style>
 </head>
 <body>
@@ -861,6 +867,7 @@
         <button class="tabbtn" data-tab="monthtable">🗓️ Monatstabelle</button>
         <button class="tabbtn" data-tab="stats">📊 Statistik</button>
         <button class="tabbtn" data-tab="backup">💾 Backup</button>
+        <span class="small" id="lastBackupInfo" style="margin-left:auto; align-self:center;"></span>
       </div>
     </div>
   </div>
@@ -1046,6 +1053,10 @@
             <div class="kpi">
               <div class="label">⚖️ Über-/Unterzeit</div>
               <div class="value" id="kpiDelta">–</div>
+            </div>
+            <div class="kpi" id="kpiEndWrap" style="display:none;" title="Zeitpunkt, an dem das Tages-Soll (inkl. Vorholzeit) erreicht ist, wenn du ohne weitere Unterbrechung durcharbeitest.">
+              <div class="label">🏁 Soll erreicht um <span class="small" id="kpiEndNote"></span></div>
+              <div class="value" id="kpiEnd">–</div>
             </div>
 
             <div class="kpi" id="monthSummary">
@@ -1295,6 +1306,8 @@
         </div>
       </div>
     </section>
+
+    <div class="app-footer small" id="appFooter"></div>
 
   </div>
 
@@ -2567,6 +2580,29 @@ function tripSummary(day){
 // Merkt sich die alte "Dienstreise-Dauer" eines geladenen Tages (nur gültig für genau dieses Datum)
 let legacyTrip = { date: "", hours: "" };
 
+// Voraussichtlicher Zeitpunkt, an dem das Tages-Soll erreicht ist (nur solange der Tag noch offen ist)
+function estimateFinish(day, settings){
+  if(day.vacation || day.comp || day.pre) return null;
+  const T = targetOvertimeMinutes(settings); if(!(T > 0)) return null;
+  const s1 = parseDurationHHMM(day.start1 || ""), e1 = parseDurationHHMM(day.end1 || "");
+  const s2 = parseDurationHHMM(day.start2 || ""), e2 = parseDurationHHMM(day.end2 || "");
+  if(e2 != null) return null;                                   // Tag bereits abgeschlossen
+
+  const N = T - calcTripMinutes(day);                            // Rest-Soll nach Abzug der Dienstreise
+  if(N <= 0 && day.trip) return { text: "✓ erreicht", note: "durch Reisezeit" };
+  if(s1 == null) return null;
+
+  const brField = parseDurationHHMM(day.break || "");
+  const br = brField ?? (parseDurationHHMM(settings.stdBreak || "") ?? 65);
+  const note = brField == null ? `Pause ${fmtMinutes(br)} angenommen` : "";
+
+  let endMin = null;
+  if(e1 == null && s2 == null) endMin = s1 + N + br;                     // ein durchgehender Block
+  else if(e1 != null && s2 != null) endMin = s2 + N - (e1 - s1) + br;    // zweiter Block läuft
+  if(endMin == null || endMin < 0 || endMin >= 1440) return null;
+  return { text: fmtMinutes(endMin), note };
+}
+
 // Dienstreise-Felder nur zeigen, wenn "Dienstreise" gewählt ist; sonst ausblenden und leeren
 function updateTripFields(){
   const on = !!$("trip_check")?.checked;
@@ -2602,6 +2638,13 @@ function liveCalc(){
   else if(day.comp) hint = "🧩 Kompensation: Sollzeit wird vom Überstunden-Saldo abgezogen.";
 
   $("calcHint").textContent = hint;
+
+  const finWrap = $("kpiEndWrap");
+  if(finWrap){
+    const est = estimateFinish(day, getSettingsForYear(getYearFromISO(date)));
+    if(!est){ finWrap.style.display = "none"; }
+    else { finWrap.style.display = ""; $("kpiEnd").textContent = est.text; $("kpiEndNote").textContent = est.note || ""; }
+  }
 
   const sumEl = $("tripSum"); if(sumEl) sumEl.textContent = "Dienstreise gesamt: " + (day.trip ? fmtMinutes(calcTripMinutes(day)) : "–");
   const legEl = $("tripLegacyNote");
@@ -2690,7 +2733,12 @@ function renderMonthTable(){
       const dt = new Date(iso + "T00:00:00");
       const tr = document.createElement("tr");
       tr.title = "Klicken zum Bearbeiten";
-      tr.appendChild(mkTd(`${WD[dt.getDay()]} ${fmtShort(iso)}`));
+      const dTd = mkTd(`${WD[dt.getDay()]} ${fmtShort(iso)}`);
+      if(iso === todayISO()){
+        tr.classList.add("mt-today");
+        const tag = document.createElement("span"); tag.className = "mt-todaytag"; tag.textContent = "heute"; dTd.appendChild(tag);
+      }
+      tr.appendChild(dTd);
       tr.appendChild(mkTd(day.start1 || "–", "tm"));
       tr.appendChild(mkTd(day.end1 || "–", "tm"));
       tr.appendChild(mkTd(spanText(day.start1, day.end1), "tm mt-dur"));
@@ -2756,7 +2804,36 @@ function renderMonthTable(){
   foot.appendChild(ftr);
 }
 
+/* ===== Info: letztes Backup, Version ===== */
+const LAST_BACKUP_KEY = "azeit.v1.lastBackup";
+const APP_BUILD = "05.11.2026 13:36";
+
+function renderBackupInfo(){
+  const el = $("lastBackupInfo"); if(!el) return;
+  let ts = 0; try{ ts = Number(localStorage.getItem(LAST_BACKUP_KEY)) || 0; }catch(e){}
+  if(!(ts > 0)){ el.textContent = "💾 Letztes Backup: –"; el.title = "Wird ab dem nächsten Backup-Export gespeichert."; return; }
+  const d = new Date(ts), now = new Date();
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()) - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000);
+  el.textContent = `💾 Letztes Backup: ${days <= 0 ? "heute" : days === 1 ? "gestern" : `vor ${days} Tagen`}`;
+  el.title = `Zuletzt exportiert am ${d.toLocaleDateString("de-CH")} um ${d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })}`;
+}
+
+function renderAppFooter(){
+  const el = $("appFooter"); if(!el) return;
+  const base = [`Version ${APP_BUILD}`, navigator.onLine ? "online" : "offline"];
+  el.textContent = base.join(" · ");
+  if(window.caches && caches.keys){
+    caches.keys().then(keys => {
+      const k = keys.filter(x => x.startsWith("azeit-"));
+      if(k.length) el.textContent = base.concat(`Cache ${k.join(", ")}`).join(" · ");
+    }).catch(()=>{});
+  }
+}
+window.addEventListener("online", renderAppFooter);
+window.addEventListener("offline", renderAppFooter);
+
 function refreshAll(){
+  renderBackupInfo();
   renderOverview(); renderTimesKPIs(); renderDaysTable(); liveCalc(); renderStats(); renderMonthCalendar(); validateDayInputs(); renderMonthSummary(); renderMonthCheck(); renderMonthTable();
 }
 
@@ -2766,7 +2843,12 @@ document.querySelectorAll(".tabbtn").forEach(btn=>{
     document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
     if(btn.dataset.tab==="stats"){ $("tab-stats").classList.add("active"); renderStatsChartAfterLayout(); }
     else $(`tab-${btn.dataset.tab}`).classList.add("active");
-    if(btn.dataset.tab==="monthtable") renderMonthTable();
+    if(btn.dataset.tab==="monthtable"){
+      renderMonthTable();
+      // zur heutigen Zeile scrollen, falls sie nicht sichtbar ist
+      const t = document.querySelector("#mtBody tr.mt-today");
+      if(t){ const r = t.getBoundingClientRect(); if(r.top < 0 || r.bottom > window.innerHeight) t.scrollIntoView({ block: "center" }); }
+    }
   });
 });
 
@@ -3356,6 +3438,8 @@ function downloadBackupJSON(jsonText){
   const blob = new Blob([jsonText], {type:"application/json"}); const url = URL.createObjectURL(blob);
   const a = document.createElement("a"); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(()=> URL.revokeObjectURL(url), 1000);
+  try{ localStorage.setItem(LAST_BACKUP_KEY, String(Date.now())); }catch(e){}
+  renderBackupInfo();
 }
 
 function applyImportedState(st){ state = st; ensureDefaultSheetsSelection(); saveState(state); refreshAll(); }
@@ -3394,6 +3478,7 @@ $("btnResetAll").addEventListener("click", ()=>{
   ========================= */
 (function init(){
   ensureDefaultSheetsSelection(); 
+  renderAppFooter();
   
   // 1. Zuerst alle Standard-Listen und Ansichten aufbauen lassen
   setupListControls(); 
