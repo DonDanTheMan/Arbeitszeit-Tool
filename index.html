@@ -654,7 +654,7 @@
     .kw-row td{ border-top: 1px solid rgba(255,99,49,0.35); border-bottom: 1px solid rgba(255,99,49,0.25); }
     .btn:active, .tabbtn:active, .sheetbtn:active, .chip:active{ transform: translateY(1px); }
 
-    h1, h2, .tabbtn, .btn, .pill, .chip, td, th, label{ font-variant-emoji: emoji; }
+    h1, h2, .tabbtn, .btn{ font-variant-emoji: emoji; } /* nicht auf td/th/chip: sonst werden Ziffern auf Android als breite, blasse Emoji-Zeichen gerendert */
     .tabbtn, .btn, .pill, .chip{ letter-spacing: 0.1px; }
     .tabbtn span.emoji, .btn span.emoji { font-size: 0.9em; }
     .tabbtn, .btn, .pill, .chip { font-size: 13px; }
@@ -841,6 +841,21 @@
     .mt-table tr.mt-today td:first-child{ box-shadow: inset 3px 0 0 var(--accent); }
     /* Handy: Tage als kompakte Karten statt breiter Tabelle */
     @media (max-width:700px){
+      .mt-filterrow{ display:flex; flex-wrap:wrap; gap:8px; } .mt-filterrow input{ flex:1 1 140px; min-width:0; } .mt-filterrow select{ flex:0 1 130px; min-width:0; }
+      .stickybar{ position:static; top:auto; width:calc(100% - 16px); padding:10px 10px 8px; border-radius:14px; }
+      .stickybar .title p{ display:none; }
+      .stickybar .header{ margin-bottom:8px; align-items:center; }
+      .stickybar #btnResetAll{ padding:6px 10px; font-size:12px; }
+      .card table.mt-table td, .card table.mt-table th{ overflow:visible; text-overflow:clip; }
+      .card table.mt-table td{ font-size:14px; color:var(--white, #fff); }
+      .card table.mt-table tbody tr:not(.mt-week) td:nth-child(1){ font-size:14.5px !important; }
+      .card table.mt-table td.num, .card table.mt-table td.tm{ font-variant-numeric:tabular-nums; }
+      .card table.mt-table tr.mt-triprow td{ font-size:13px; color:rgba(255,255,255,0.8); }
+      .card table.mt-table tbody tr:not(.mt-week) td:nth-child(2)::before,
+      .card table.mt-table tbody tr:not(.mt-week) td:nth-child(3)::before,
+      .card table.mt-table tbody tr:not(.mt-week) td:nth-child(5)::before,
+      .card table.mt-table tbody tr:not(.mt-week) td:nth-child(6)::before,
+      .card table.mt-table tbody tr:not(.mt-week) td:nth-child(8)::before{ color:rgba(255,255,255,0.6) !important; font-size:9.5px !important; }
       .card table.mt-table{ min-width:0; width:100%; }
       .card table.mt-table thead{ display:none; }
       .card table.mt-table, .card table.mt-table tbody, .card table.mt-table tfoot{ display:block; width:100%; }
@@ -900,7 +915,7 @@
           <div class="logo" aria-hidden="true"></div>
           <div class="title">
             <h1>Arbeitszeiterfassung</h1>
-            <p>Wird alles nur lokal im Browser gespeichert -> für Nutzung auf verschiedenen Geräten, bitte Backup erstellen und importieren</p>
+            <p>Daten liegen lokal im Browser und werden über ☁️ Cloud-Sync abgeglichen – regelmässig Backup erstellen</p>
           </div>
         </div>
         <div class="row">
@@ -2852,7 +2867,7 @@ function renderMonthTable(){
 
 /* ===== Info: letztes Backup, Version ===== */
 const LAST_BACKUP_KEY = "azeit.v1.lastBackup";
-const APP_BUILD = "05.11.2026 16:20";
+const APP_BUILD = "06.11.2026 07:55";
 
 function renderBackupInfo(){
   const el = $("lastBackupInfo"); if(!el) return;
